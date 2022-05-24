@@ -4,7 +4,11 @@ ProbKT, a framework based on probabilistic reasoning to train object detection m
 
 ## Prerequisites and installation
 
-For easy of use we recommend to first install and set up a poetry environment: https://python-poetry.org
+To take advantage of full features of code we recommend to create an account on [WANDB](https://wandb.ai/) and login.
+
+ProbKT finetuning also depends on [DeepProbLog](https://github.com/ML-KULeuven/deepproblog).
+
+For easy of use we recommend to also first install and set up a [poetry environment](https://python-poetry.org)
 
 Then execute:
 
@@ -30,4 +34,54 @@ For training the baseline model on the MNIST dataset execute:
 
 ```
 poetry run python robust_detection/baselines/train.py --data_dir mnist/mnist3_all
+```
+
+## Pretrain RCNN Model
+
+Pretrain the RCNN model on source domain of MNIST dataset:
+
+```
+poetry run python robust_detection/train/train_rcnn.py --data_path mnist/mnist3_skip
+```
+
+## Pretrain DETR Model
+
+Pretrain the DETR model on source domain of MNIST dataset:
+
+```
+poetry run python robust_detection/train/train_detr.py --data_path mnist/mnist3_skip --rgb True
+```
+
+## ProbKT Finetune RCNN Pretrained model
+
+For finetuning a sweep is assumed on your wandb account for the 5 fold pretrained RCNN model. Example sweep configuration:
+```
+method: grid
+parameters:
+  batch_size:
+    values:
+      - 1
+  data_path:
+    values:
+      - mnist/mnist3_skip
+  epochs:
+    values:
+      - 30
+  fold:
+    values:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+  pre_trained:
+    values:
+      - true
+program: train_rcnn.py
+```
+
+Once sweep has ran succesful finetuning can start using:
+
+```
+poetry run python robust_detection/train/train_fine_tune.py --og_data_path mnist/mnist3_skip --target_data_path mnist/mnist3_all --agg_case True --fold 0 --sweep_id <sweepid>
 ```
