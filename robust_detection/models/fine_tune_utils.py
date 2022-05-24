@@ -35,7 +35,7 @@ from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
 from torchvision.transforms import functional as F
 
-from engine import train_one_epoch, evaluate
+from robuts_detection.engine import train_one_epoch, evaluate
 from utils import MNIST_Classifier, MNIST_Detection_Dataset, MNIST_detect_wrapper, MNIST_SingleDetection_Dataset
 from utils import myRoIHeads
 from deepproblog.dataset import DataLoader
