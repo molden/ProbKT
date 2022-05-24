@@ -11,7 +11,7 @@ from torch.utils.data import *
 from PIL import Image
 from scipy import ndimage, misc
 import skimage.draw as draw
-import transforms as T
+import robust_detection.transforms as T
 import pandas as pd
 import numpy as np
 import torchvision
