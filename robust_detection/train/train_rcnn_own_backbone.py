@@ -1,5 +1,5 @@
 import wandb
-from robust_detection import wandb_config
+from robust_detection.wandb_config import ENTITY
 from robust_detection.models.rcnn import RCNN
 from robust_detection.data_utils.rcnn_data_utils import Objects_RCNN
 from robust_detection.train.train_rcnn import main as train_rcnn

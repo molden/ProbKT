@@ -84,10 +84,6 @@ if __name__=="__main__":
     parser.add_argument('--gpus', default=1, type=int, help='the number of gpus to use to train the model')
     parser.add_argument('--random_seed', default=42, type=int)
     parser.add_argument('--max_epochs', default=100, type=int)
-    #parser.add_argument('--data_path', type=str, \
-    #        default="/home/edward/Projects/MIT/ief/ief_core/checkpoints/")
-    #parser.add_argument('--model_type', type = str, default = "RNN")
-    #parser.add_argument('--data_type', type = str, default = "MMSynthetic")
 
     partial_args, _ = parser.parse_known_args()
 

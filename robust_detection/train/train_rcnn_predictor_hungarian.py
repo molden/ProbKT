@@ -1,4 +1,4 @@
-from robust_detection import wandb_config
+from robust_detection.wandb_config import ENTITY
 from robust_detection.train import fine_tune
 import wandb
 from robust_detection.models.rcnn import RCNN

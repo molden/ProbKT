@@ -1,4 +1,4 @@
-from robust_detection import wandb_config
+from robust_detection.wandb_config import ENTITY
 from robust_detection.models import fine_tune_utils
 import wandb
 import os

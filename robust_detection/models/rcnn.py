@@ -3,7 +3,7 @@ import os
 import sys
 import time
 import torch
-from robust_detection import wandb_config
+from robust_detection.wandb_config import ENTITY
 import wandb
 
 from robust_detection.baselines.cnn_model import CNN
