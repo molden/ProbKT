@@ -51,3 +51,37 @@ Pretrain the DETR model on source domain of MNIST dataset:
 ```
 poetry run python robust_detection/train/train_detr.py --data_path mnist/mnist3_skip --rgb True
 ```
+
+## ProbKT Finetune RCNN Pretrained model
+
+For finetuning a sweep is assumed on your wandb account for the 5 fold pretrained RCNN model. Example sweep configuration:
+```
+method: grid
+parameters:
+  batch_size:
+    values:
+      - 1
+  data_path:
+    values:
+      - mnist/mnist3_skip
+  epochs:
+    values:
+      - 30
+  fold:
+    values:
+      - 0
+      - 1
+      - 2
+      - 3
+      - 4
+  pre_trained:
+    values:
+      - true
+program: train_rcnn.py
+```
+
+Once sweep has ran succesful finetuning can start using:
+
+```
+poetry run python robust_detection/train/train_fine_tune.py --og_data_path mnist/mnist3_skip --target_data_path mnist/mnist3_all --agg_case True --fold 0 --sweep_id <sweepid>
+```
