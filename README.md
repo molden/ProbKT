@@ -4,7 +4,11 @@ ProbKT, a framework based on probabilistic reasoning to train object detection m
 
 ## Prerequisites and installation
 
-For easy of use we recommend to first install and set up a poetry environment: https://python-poetry.org
+To take advantage of full features of code we recommend to create an account on [WANDB](https://wandb.ai/) and login.
+
+ProbKT finetuning also depends on [DeepProbLog](https://github.com/ML-KULeuven/deepproblog).
+
+For easy of use we recommend to also first install and set up a [poetry environment](https://python-poetry.org)
 
 Then execute:
 
