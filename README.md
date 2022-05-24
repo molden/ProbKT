@@ -31,3 +31,11 @@ For training the baseline model on the MNIST dataset execute:
 ```
 poetry run python robust_detection/baselines/train.py --data_dir mnist/mnist3_all
 ```
+
+## Pretrain RCNN Model
+
+Pretrain the RCNN model on source domain of MNIST dataset:
+
+```
+poetry run python robust_detection/train/train_rcnn.py --data_path mnist/mnist3_skip
+```
