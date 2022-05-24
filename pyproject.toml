@@ -2,7 +2,7 @@
 name = "robust_detection"
 version = "0.1.0"
 description = ""
-authors = ["Anonymous <>"]
+authors = ["Anonymous <annymous@anonymous.anonymous>"]
 
 [tool.poetry.dependencies]
 python = ">=3.8,<3.11"
