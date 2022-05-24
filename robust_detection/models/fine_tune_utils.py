@@ -36,8 +36,8 @@ from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
 from torchvision.transforms import functional as F
 
 from robust_detection.engine import train_one_epoch, evaluate
-from utils import MNIST_Classifier, MNIST_Detection_Dataset, MNIST_detect_wrapper, MNIST_SingleDetection_Dataset
-from utils import myRoIHeads
+from robust_detection.dpl_utils import MNIST_Classifier, MNIST_Detection_Dataset, MNIST_detect_wrapper, MNIST_SingleDetection_Dataset
+from robust_detection.dpl_utils import myRoIHeads
 from deepproblog.dataset import DataLoader
 
 from robust_detection.utils import DATA_DIR
