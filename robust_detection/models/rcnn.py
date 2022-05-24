@@ -25,7 +25,7 @@ from torchvision.models.detection.backbone_utils import _validate_trainable_laye
 #from torchvision.models.detection.backbone_utils import _resnet_fpn_extractor
 from torchvision.ops import misc as misc_nn_ops
 from torchvision.models.detection.faster_rcnn import fasterrcnn_resnet50_fpn, FasterRCNN
-from torchmetrics.detection.map import MeanAveragePrecision
+#from torchmetrics.detection.map import MeanAveragePrecision
 import torch.nn.functional as F
 
 class BoxPredictor(torch.nn.Module):

@@ -3,7 +3,7 @@ import pytorch_lightning as pl
 from PIL import Image
 from scipy import ndimage, misc
 import skimage.draw as draw
-import transforms as T
+import robust_detection.transforms as T
 import robust_detection.data_utils.detr_transforms as detr_T
 import numpy as np
 import pandas as pd
