@@ -39,3 +39,11 @@ Pretrain the RCNN model on source domain of MNIST dataset:
 ```
 poetry run python robust_detection/train/train_rcnn.py --data_path mnist/mnist3_skip
 ```
+
+## Pretrain DETR Model
+
+Pretrain the DETR model on source domain of MNIST dataset:
+
+```
+poetry run python robust_detection/train/train_detr.py --data_path mnist/mnist3_skip --rgb True
+```
