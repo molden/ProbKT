@@ -29,4 +29,4 @@ roll([H|T],A,L):- roll(T,[Y|A],L), digit(H,Y).
 countpart(List,[],[],[]).
 countpart(List,[H|T],[F|L],[A|B]):- countall(List,H,F,A), countpart(List,T,L,B).
 
-count_objects(X,L,C,S) :- roll(X,[],Result), countpart(Result,L,C,S).
+range_count_objects(X,L,C,S) :- roll(X,[],Result), countpart(Result,L,C,S).
