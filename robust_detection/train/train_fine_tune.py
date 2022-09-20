@@ -17,6 +17,7 @@ if __name__=="__main__":
     parser.add_argument('--fold', type=int, help='the fold we want to fine tune')
     parser.add_argument('--detr', type=bool, help='set to true if DETR model', default=False)
     parser.add_argument('--agg_case', type=bool, help='set to true to fine  tune in the aggregation mode', default=False)
+    parser.add_argument('--range_case', type=int, help='the upper limit of number of objects in order to start using range, set to -1 to ignore ranges', default=-1)
     args = parser.parse_args()
 
     sweep_id = args.sweep_id
@@ -56,9 +57,10 @@ if __name__=="__main__":
             log_model=False
         )
 
-    fine_tune.fine_tune(run_name, model_cls, data_cls, target_data_path, num_epochs_dpl = 20, logger = logger, detr=args.detr, agg_case = args.agg_case)
+    #fine_tune.fine_tune(run_name, model_cls, data_cls, target_data_path, num_epochs_dpl = 20, logger = logger, detr=args.detr, agg_case = args.agg_case, range_case = args.range_case)
+    fine_tune.fine_tune(run_name, model_cls, data_cls, target_data_path, num_epochs_dpl = 20, logger = logger, detr=args.detr, agg_case = args.agg_case, range_case = args.range_case)
     if args.detr:
         re_run_id = fine_tune.re_train_detr(run_name, model_cls, data_cls, target_data_path, logger = logger, agg_case=args.agg_case)
     else:
-       re_run_id = fine_tune.re_train(run_name, model_cls, data_cls, target_data_path, logger = logger, agg_case=args.agg_case)
+       re_run_id = fine_tune.re_train(run_name, model_cls, data_cls, target_data_path, logger = logger, agg_case=args.agg_case, range_case=args.range_case)
 

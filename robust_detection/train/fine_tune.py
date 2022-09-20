@@ -149,7 +149,7 @@ def hungarian_fine_tune(run_name, model_cls, data_cls, target_data_path, args, l
 
         
 
-def fine_tune(run_name, model_cls, data_cls, target_data_path, num_epochs_dpl = 20, logger = None, detr=False, agg_case = False):
+def fine_tune(run_name, model_cls, data_cls, target_data_path, num_epochs_dpl = 20, logger = None, detr=False, agg_case = False, range_case = -1):
 
     print("Filtering data .....")
     if detr:
@@ -158,17 +158,20 @@ def fine_tune(run_name, model_cls, data_cls, target_data_path, num_epochs_dpl = 
         #else:
         filter_level = 0.92
     else:
-        filter_level = 0.99
-    fine_tune_utils.create_tensors_data(run_name, model_cls, data_cls, target_data_path = target_data_path, classif = None, filter_level = filter_level, detr=detr, agg_case = agg_case)
+        if range_case > -1:
+            filter_level = 0.998
+        else:
+            filter_level = 0.99
+    fine_tune_utils.create_tensors_data(run_name, model_cls, data_cls, target_data_path = target_data_path, classif = None, filter_level = filter_level, detr=detr, agg_case = agg_case, range_case = range_case)
     print("Data Filtered.")
 
     print("Loading DPL model ....")
     classifier = None
-    dpl_loader, model_dpl, fold = fine_tune_utils.prepare_problog_model(run_name, model_cls, batch_size = 16, target_data_path = target_data_path, classif = classifier, detr=detr, agg_case=agg_case)
+    dpl_loader, model_dpl, fold = fine_tune_utils.prepare_problog_model(run_name, model_cls, batch_size = 16, target_data_path = target_data_path, classif = classifier, detr=detr, agg_case=agg_case, range_case = range_case)
     print("DPL model loaded.")
         
     classif = copy.deepcopy(model_dpl.networks['mnist_net'].network_module.classifier)
-    val_acc = fine_tune_utils.evaluate_classifier(classif, data_path = target_data_path, fold = fold, fold_type = "val", agg_case=agg_case)
+    val_acc = fine_tune_utils.evaluate_classifier(classif, data_path = target_data_path, fold = fold, fold_type = "val", agg_case=agg_case, range_case=range_case)
     print(f"Validation accuracy : {val_acc}")
 
     print("Training DPL model ...")
@@ -178,8 +181,8 @@ def fine_tune(run_name, model_cls, data_cls, target_data_path, num_epochs_dpl = 
     for epoch in range(epochs):
         train = train_model(model_dpl, dpl_loader, 1, log_iter=10, profile=0)
         classif = copy.deepcopy(model_dpl.networks['mnist_net'].network_module.classifier)
-        val_acc = fine_tune_utils.evaluate_classifier(classif, data_path = target_data_path, fold = fold, fold_type = "val", agg_case=agg_case)
-        train_acc = fine_tune_utils.evaluate_classifier(classif, data_path = target_data_path, fold = fold, fold_type = "train", agg_case=agg_case)
+        val_acc = fine_tune_utils.evaluate_classifier(classif, data_path = target_data_path, fold = fold, fold_type = "val", agg_case=agg_case, range_case=range_case)
+        train_acc = fine_tune_utils.evaluate_classifier(classif, data_path = target_data_path, fold = fold, fold_type = "train", agg_case=agg_case, range_case=range_case)
         print(f"Training accuracy : {train_acc:.3f} - Validation accuracy : {val_acc:.3f}")
         if logger is not None:
             logger.experiment.log({"dpl_train_accuracy":train_acc,"dpl_val_accuracy":val_acc})
@@ -192,14 +195,14 @@ def fine_tune(run_name, model_cls, data_cls, target_data_path, num_epochs_dpl = 
     print(f"restoring from {best_model_path} with val_acc {val_acc_best}")
     classif.load_state_dict(torch.load(best_model_path))
     print("Creating new labels .....")
-    fine_tune_utils.relabel_data(run_name, model_cls, data_cls, target_data_path = target_data_path, classif = classif, agg_case=agg_case)
+    fine_tune_utils.relabel_data(run_name, model_cls, data_cls, target_data_path = target_data_path, classif = classif, agg_case=agg_case, range_case=range_case)
     print("Done.")
     return 
 
 #def fine_tune_detr(run_name, model_cls, data_cls, target_data_path, logger = None):
 #    fine_tune_utils.tune_detr(run_name, model_cls, data_cls, target_data_path
 
-def re_train(run_name, model_cls, data_cls, target_data_path, logger = None, agg_case=False):
+def re_train(run_name, model_cls, data_cls, target_data_path, logger = None, agg_case=False, range_case=-1):
 
     api = wandb.Api()
     run = api.run(f"{ENTITY}/object_detection/{run_name}")
@@ -225,6 +228,10 @@ def re_train(run_name, model_cls, data_cls, target_data_path, logger = None, agg
         hparams.agg_case=agg_case
     else:
         setattr(hparams, 'agg_case', agg_case)
+    if hasattr(hparams, 'range_case'):
+        hparams.range_case=range_case
+    else:
+        setattr(hparams, 'range_case', range_case)
     #hparams.hungarian_fine_tuning = hungarian_fine_tuning
     hparams = Namespace(**hparams)
     del hparams.len_dataloader

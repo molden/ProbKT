@@ -50,7 +50,8 @@ def main(model_cls, data_cls, args, logger = None):
         checkpoint_path)
     val_results = trainer2.test(
         model,
-        test_dataloaders=dataset.val_dataloader()
+    #    test_dataloaders=dataset.val_dataloader()
+        dataloaders=dataset.val_dataloader()
     )[0]
 
     val_results = {
@@ -60,7 +61,8 @@ def main(model_cls, data_cls, args, logger = None):
 
     test_results = trainer2.test(
         model,
-        test_dataloaders=dataset.test_dataloader()
+       # test_dataloaders=dataset.test_dataloader()
+        dataloaders=dataset.test_dataloader()
     )[0]
 
     for name, value in {**test_results}.items():

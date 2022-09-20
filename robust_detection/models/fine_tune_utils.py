@@ -18,7 +18,7 @@ from robust_detection.models.rcnn_utils import WrapModel
 import numpy as np
 import copy
 
-from robust_detection.data_utils.problog_data_utils import MNIST_Sum, MNIST_Counter, MNIST_Images
+from robust_detection.data_utils.problog_data_utils import MNIST_Sum, MNIST_Counter, MNIST_Images, Range_Counter
 
 from deepproblog.engines import ApproximateEngine, ExactEngine
 from deepproblog.evaluate import get_confusion_matrix
@@ -42,7 +42,7 @@ from deepproblog.dataset import DataLoader
 
 from robust_detection.utils import DATA_DIR
 
-def prepare_problog_model(run_name,model_cls, batch_size = 16, target_data_path = None, classif = None, detr=False, agg_case=False):
+def prepare_problog_model(run_name,model_cls, batch_size = 16, target_data_path = None, classif = None, detr=False, agg_case=False, range_case=-1):
     api = wandb.Api()
 
     run = api.run(f"{ENTITY}/object_detection/{run_name}")
@@ -66,11 +66,18 @@ def prepare_problog_model(run_name,model_cls, batch_size = 16, target_data_path 
           "test": MNIST_Sum(f"{hparams.data_path}",fold, fold_type = "test"),
         }  
     else:
-        datasets = {
-          "train": MNIST_Counter(f"{hparams.data_path}",fold, fold_type = "train"),
-          "val": MNIST_Counter(f"{hparams.data_path}",fold, fold_type = "val"),
-          "test": MNIST_Counter(f"{hparams.data_path}",fold, fold_type = "test"),
-        }
+        if range_case > -1:
+            datasets = {
+              "train": Range_Counter(f"{hparams.data_path}",fold, fold_type = "train", range_case=range_case),
+              "val": Range_Counter(f"{hparams.data_path}",fold, fold_type = "val", range_case=range_case),
+              "test": Range_Counter(f"{hparams.data_path}",fold, fold_type = "test", range_case=range_case),
+            }
+        else:   
+            datasets = {
+              "train": MNIST_Counter(f"{hparams.data_path}",fold, fold_type = "train"),
+              "val": MNIST_Counter(f"{hparams.data_path}",fold, fold_type = "val"),
+              "test": MNIST_Counter(f"{hparams.data_path}",fold, fold_type = "test"),
+            }
 
     if classif is None:
         if detr:
@@ -87,7 +94,10 @@ def prepare_problog_model(run_name,model_cls, batch_size = 16, target_data_path 
     if "molecules" in hparams.data_path:
         model_dpl = Model(os.path.join(DATA_DIR,"..","models","count_molecules.pl"), [net])
     elif "clevr" in hparams.data_path:
-        model_dpl = Model(os.path.join(DATA_DIR,"..","models","count_clevr.pl"), [net])
+        if range_case > -1:
+            model_dpl = Model(os.path.join(DATA_DIR,"..","models","range_count_clevr.pl"), [net])
+        else:
+            model_dpl = Model(os.path.join(DATA_DIR,"..","models","count_clevr.pl"), [net])
     else:
         if agg_case:
             model_dpl = Model(os.path.join(DATA_DIR,"..","models","sum_digits.pl"), [net])
@@ -107,7 +117,7 @@ def prepare_problog_model(run_name,model_cls, batch_size = 16, target_data_path 
     return loader, model_dpl, fold
 
 
-def evaluate_classifier(classif,data_path, fold, fold_type ,threshold = 0.65, agg_case=False):
+def evaluate_classifier(classif,data_path, fold, fold_type ,threshold = 0.65, agg_case=False, range_case=-1):
     
     classif.to("cpu")
     wrap_model = WrapModel(classif)
@@ -141,6 +151,17 @@ def evaluate_classifier(classif,data_path, fold, fold_type ,threshold = 0.65, ag
         if agg_case:
             #import ipdb; ipdb.set_trace()
             accs.append(torch.sum(preds.sort()[0].long()) == torch.sum(torch.Tensor(labels).long().sort()[0]))
+        elif range_case > -1 :
+            values_preds, count_preds = torch.unique(preds, sorted = True, return_counts = True)
+            values_labels, count_labels = torch.unique(torch.tensor(labels, dtype=torch.int64), sorted = True, return_counts = True)
+            #import ipdb; ipdb.set_trace()
+            if torch.equal(values_preds, values_labels):
+               count_preds_clamped = torch.clamp(count_preds, max=range_case)
+               count_labels_clamped = torch.clamp(count_labels, max=range_case)
+               # import ipdb; ipdb.set_trace()
+               accs.append(torch.equal(count_preds_clamped, count_labels_clamped))
+            else:
+               accs.append(False)
         else:
             accs.append(torch.equal(preds.sort()[0].long(), torch.Tensor(labels).sort()[0].long()))
     accs = np.array(accs)
@@ -176,7 +197,7 @@ def test_tensors_data(run_name, model_cls, data_cls):
     print(f"Accuracy on recovered tensors with classifier : {accs.mean()}")
 
 
-def filter_data(box_features, labels, boxes, classif, level = 0.99, in_label_check = True):
+def filter_data(box_features, labels, boxes, classif, level = 0.99, in_label_check = True, range_case = -1):
     """
     in_label_check : if true, only removes the tensor if the predicted digit is in the label.
     """
@@ -185,8 +206,10 @@ def filter_data(box_features, labels, boxes, classif, level = 0.99, in_label_che
     wrap_model = WrapModel(classif)
     confident_index, confident_preds = torch.where(wrap_model(box_features)>level) # get the index and the values of the confident predictions
     retained_index = [i for i in range(box_features.shape[0])] #initialized the retained index with the full tensor
-
+    removed_labels = []
     for i in range(len(confident_index)):
+        np_labels = np.array(labels)
+        np_removed_labels = np.array(removed_labels)
         if len(labels) <= 2: # at least two prediction left per image
             break
         else:
@@ -195,42 +218,108 @@ def filter_data(box_features, labels, boxes, classif, level = 0.99, in_label_che
                     retained_index.remove(confident_index[i]) # remove this tensor from the data
                     labels.remove(confident_preds[i].item())  # remove the label            
             else:
-                retained_index.remove(confident_index[i]) # remove this tensor from the data
-                labels.remove(confident_preds[i].item())  # remove the label            
-
-    if len(retained_index)>len(labels):
-        retained_index = retained_index[:len(labels)] # TODO : this is  to deal with mistmatch between number of windows and numbers of labels
+                if range_case > - 1:
+                   # import ipdb; ipdb.set_trace()
+                    count_labels = np.count_nonzero(np_labels == confident_preds[i].item())
+                    count_removed_labels = np.count_nonzero(np_removed_labels == confident_preds[i].item())
+                    if (count_labels + count_removed_labels) > range_case:
+                        if count_removed_labels < range_case:
+                          if confident_preds[i].item() in labels:#also in range_case we know which labels are present only not the exact amount
+                             retained_index.remove(confident_index[i])
+                             labels.remove(confident_preds[i].item())
+                             removed_labels.append(confident_preds[i].item())
+                    else:
+                        if confident_preds[i].item() in labels:#also in range_case we know which labels are present only not the exact amount
+                           retained_index.remove(confident_index[i])
+                           labels.remove(confident_preds[i].item())
+                           removed_labels.append(confident_preds[i].item())
+                    #count_ind_labels + count_removed_labels: based on this and range_case decide to remove labels
+                   # import ipdb; ipdb.set_trace()
+                    #labels, confident_preds[i]
+                else:
+                    retained_index.remove(confident_index[i]) # remove this tensor from the data
+                    labels.remove(confident_preds[i].item())  # remove the label            
+    if range_case == -1:#This check can only be done when we have the exact number of labels (not in range case)
+       if len(retained_index)>len(labels):
+          retained_index = retained_index[:len(labels)] # TODO : this is  to deal with mistmatch between number of windows and numbers of labels
     
     if len(retained_index) < len(labels):
         box_features = torch.cat((box_features, torch.zeros(len(labels)-len(retained_index),box_features.shape[1])),0) # TODO : this is  to deal with mistmatch between number of windows and numbers of labels
         retained_index += [-i for i in range(1,len(labels)-len(retained_index)+1)]
-        return None, None
-    
-    assert(len(retained_index)==len(labels))
+        #import ipdb; ipdb.set_trace()
+        if range_case > -1:
+            return None, None, None
+        else:
+            return None, None
+   
+    if range_case == -1:
+       assert(len(retained_index)==len(labels))
      
-    df = pd.DataFrame(labels, columns = ["label"])
-    
-    df["xmin"] = boxes[retained_index,0].long()
-    df["ymin"] = boxes[retained_index,1].long()
-    df["xmax"] = boxes[retained_index,2].long()
-    df["ymax"] = boxes[retained_index,3].long()
-    
-    if (df["xmax"]-df["xmin"]).values.min()<=0:
-        return None, None
-    if (df["ymax"]-df["ymin"]).values.min()<=0:
-        return None, None
     if len(retained_index)>4 and level < 1.:
-        return None, None
+        if range_case > -1:
+            return None, None, None
+        else:
+            return None, None
+
+    df = pd.DataFrame(labels, columns = ["label"])
+   # if len(retained_index) > boxes.shape[0]:
+   #    import ipdb; ipdb.set_trace()    
+   # df["xmin"] = boxes[retained_index,0].long()
+   # df["ymin"] = boxes[retained_index,1].long()
+   # df["xmax"] = boxes[retained_index,2].long()
+   # df["ymax"] = boxes[retained_index,3].long()
+    df["xmin"] = 0
+    df["ymin"] = 0
+    df["xmax"] = 0
+    df["ymax"] = 0
+    
+   ## if (df["xmax"]-df["xmin"]).values.min()<=0:
+   ##     if range_case > -1:
+   ##         return None, None, None
+   ##     else:
+   ##         return None, None
+   ## if (df["ymax"]-df["ymin"]).values.min()<=0:
+   ##     if range_case > -1:
+   ##         return None, None, None
+   ##     else:
+   ##         return None, None
+   ## else:
+    if range_case > -1:
+           df_del = pd.DataFrame(removed_labels, columns = ["label"])
+           df_del["xmin"] = 0
+           df_del["ymin"] = 0
+           df_del["xmax"] = 0
+           df_del["ymax"] = 0
+           return box_features[retained_index], df, df_del
     else:
-        return box_features[retained_index], df
+           return box_features[retained_index], df
 
 
-def select_data_to_label(box_features, labels, boxes, classif, agg_case=False):
+def select_data_to_label(box_features, labels, boxes, classif, agg_case=False, range_case = -1):
     wrap_model = WrapModel(classif)
     
     box_features = box_features[:len(labels)]
     boxes = boxes[:len(labels)]
     preds = torch.argmax(wrap_model(box_features),1)
+    #import ipdb; ipdb.set_trace()
+    if range_case > -1:
+        values_preds, count_preds = torch.unique(preds, sorted = True, return_counts = True)
+        values_labels, count_labels = torch.unique(torch.tensor(labels, dtype=torch.int64), sorted = True, return_counts = True)
+        #import ipdb; ipdb.set_trace()
+        if torch.equal(values_preds, values_labels):
+            count_preds_clamped = torch.clamp(count_preds, max=range_case)
+            count_labels_clamped = torch.clamp(count_labels, max=range_case)
+           # import ipdb; ipdb.set_trace()
+            if torch.equal(count_preds_clamped, count_labels_clamped):
+                df = pd.DataFrame(preds, columns = ["label"])
+
+                df["xmin"] = boxes[:,0].long()
+                df["ymin"] = boxes[:,1].long()
+                df["xmax"] = boxes[:,2].long()
+                df["ymax"] = boxes[:,3].long()
+                return df
+            else:
+                return None
     if agg_case:
         #import ipdb; ipdb.set_trace()
         if torch.sum(preds.sort()[0].long()) == torch.sum(torch.Tensor(labels).long().sort()[0]):
@@ -257,7 +346,7 @@ def select_data_to_label(box_features, labels, boxes, classif, agg_case=False):
     else:
         return None
 
-def create_tensors_data(run_name, model_cls, data_cls, target_data_path = None, classif = None, filter_level = 0.99, detr=False, class_filtering = True, agg_case = False ):
+def create_tensors_data(run_name, model_cls, data_cls, target_data_path = None, classif = None, filter_level = 0.99, detr=False, class_filtering = True, agg_case = False, range_case = -1 ):
     """
     If classif is None, it uses the classifier from the pre-trained RCNN 
     """
@@ -289,6 +378,8 @@ def create_tensors_data(run_name, model_cls, data_cls, target_data_path = None, 
     if detr==False:
        initial_score_thresh = model.model.roi_heads.score_thresh 
        model.model.roi_heads.score_thresh = 0.05
+    if range_case > -1:
+       model.model.roi_heads.score_thresh = 0.65
     train_preds = trainer.predict(model, dataset.train_dataloader())
 
     if detr == False:
@@ -301,8 +392,14 @@ def create_tensors_data(run_name, model_cls, data_cls, target_data_path = None, 
     shutil.rmtree(os.path.join(DATA_DIR,hparams.data_path,"test","tensors"), ignore_errors = True)
     shutil.rmtree(os.path.join(DATA_DIR,hparams.data_path,"train","filtered_labels"),ignore_errors = True)
     shutil.rmtree(os.path.join(DATA_DIR,hparams.data_path,"test","filtered_labels"), ignore_errors = True)
+    if range_case > -1:
+        shutil.rmtree(os.path.join(DATA_DIR,hparams.data_path,"train","removed_labels"),ignore_errors = True)
+        shutil.rmtree(os.path.join(DATA_DIR,hparams.data_path,"test","removed_labels"), ignore_errors = True)
     os.makedirs(os.path.join(DATA_DIR,hparams.data_path,"train","filtered_labels"),exist_ok = True)
     os.makedirs(os.path.join(DATA_DIR,hparams.data_path,"test","filtered_labels"),exist_ok = True)
+    if range_case > -1:
+        os.makedirs(os.path.join(DATA_DIR,hparams.data_path,"train","removed_labels"),exist_ok = True)
+        os.makedirs(os.path.join(DATA_DIR,hparams.data_path,"test","removed_labels"),exist_ok = True)
     os.makedirs(os.path.join(DATA_DIR,hparams.data_path,"train","tensors"),exist_ok = True)
     os.makedirs(os.path.join(DATA_DIR,hparams.data_path,"test","tensors"),exist_ok = True)
 
@@ -317,12 +414,17 @@ def create_tensors_data(run_name, model_cls, data_cls, target_data_path = None, 
             labels = process_labels(os.path.join(DATA_DIR,hparams.data_path,"train","labels",f"{idx}.txt"))
             
             num_boxes_og.append(box_features.shape[0])
-            
-            box_features, new_labels = filter_data(box_features, labels, boxes, classif, level = filter_level, in_label_check = ~agg_case)
+           
+            if range_case > -1:
+                box_features, new_labels, removed_labels = filter_data(box_features, labels, boxes, classif, level = filter_level, in_label_check = False, range_case=range_case)
+            else:
+                box_features, new_labels = filter_data(box_features, labels, boxes, classif, level = filter_level, in_label_check = ~agg_case)
 
             if new_labels is not None:
                 torch.save(box_features,os.path.join(DATA_DIR,hparams.data_path,"train","tensors",f"{idx}.pt"))
                 new_labels.to_csv(os.path.join(DATA_DIR,hparams.data_path,"train","filtered_labels",f"{idx}.txt"))
+                if range_case > -1:
+                    removed_labels.to_csv(os.path.join(DATA_DIR,hparams.data_path,"train","removed_labels",f"{idx}.txt"))
                 idx_subset.append(idx)
                 
                 num_boxes_filtered.append(box_features.shape[0])
@@ -428,7 +530,7 @@ def fine_tune_detr(run_name, model_cls, data_cls, target_data_path = None, logge
     return logger.experiment.id
 
 
-def relabel_data(run_name, model_cls, data_cls, target_data_path = None, classif = None, agg_case=False):
+def relabel_data(run_name, model_cls, data_cls, target_data_path = None, classif = None, agg_case=False, range_case = -1):
 
     """
     If classif is None, it uses the classifier from the pre-trained RCNN 
@@ -475,7 +577,7 @@ def relabel_data(run_name, model_cls, data_cls, target_data_path = None, classif
             boxes = batch["boxes"][img_idx]
             labels = process_labels(os.path.join(DATA_DIR,hparams.data_path,"train","labels",f"{idx}.txt"))
             
-            new_labels = select_data_to_label(box_features, labels, boxes, classif, agg_case=agg_case)
+            new_labels = select_data_to_label(box_features, labels, boxes, classif, agg_case=agg_case, range_case=range_case)
             if new_labels is not None:
                 new_labels.to_csv(os.path.join(DATA_DIR,hparams.data_path,"train","re_labels",f"{idx}.txt"),index = False)
                 idx_subset.append(idx)

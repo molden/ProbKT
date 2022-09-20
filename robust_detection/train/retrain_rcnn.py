@@ -18,6 +18,7 @@ if __name__=="__main__":
     parser.add_argument('--data_path', type=str, help='the model to retrain on (on top of the original one)')
     parser.add_argument('--fold', type=int, help='the fold we want to fine tune')
     parser.add_argument('--agg_case', type=bool, help='set to true to fine  tune in the aggregation mode', default=False)
+    parser.add_argument('--range_case', type=int, help='the upper limit of number of objects in order to start using range, set to -1 to ignore ranges', default=-1)
     args = parser.parse_args()
 
     sweep_id = args.sweep_id
@@ -69,10 +70,10 @@ if __name__=="__main__":
         os.remove(fname)
 
     print("Creating new labels .....")
-    fine_tune_utils.relabel_data(run_name, model_cls, data_cls, target_data_path = data_path, classif=classifier, agg_case = args.agg_case)
+    fine_tune_utils.relabel_data(run_name, model_cls, data_cls, target_data_path = data_path, classif=classifier, agg_case = args.agg_case, range_case=args.range_case)
     print("Done.")
     #fine_tune_utils.relabel_detr(run_name, model_cls, data_cls, data_path = data_path)
     #re_run_id = fine_tune.re_train_detr(run_name, model_cls, data_cls, data_path, logger = logger)
     #fine_tune.fine_tune(run_name, model_cls, data_cls, target_data_path, num_epochs_dpl = 20, logger = logger)
-    re_run_id = fine_tune.re_train(run_name, model_cls, data_cls, data_path, logger = logger, agg_case = args.agg_case)
+    re_run_id = fine_tune.re_train(run_name, model_cls, data_cls, data_path, logger = logger, agg_case = args.agg_case, range_case=args.range_case)
 

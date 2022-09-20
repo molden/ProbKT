@@ -26,13 +26,15 @@ class Range_Counter(Dataset, TorchDataset):
         data_path,
         fold,
         fold_type,
+        range_case,
     ):
         super(Range_Counter, self).__init__()
         self.dataset_name = fold_type
+        self.range_case  = range_case
         if fold_type == "val":
             fold_subtype = "train"
         else:
-            fold_subtype = "train"
+            fold_subtype = fold_type
 
         self.data_path = os.path.join(DATA_DIR, data_path)
         if fold_type=="test":
@@ -40,13 +42,15 @@ class Range_Counter(Dataset, TorchDataset):
         elif fold_type == "val":
             self.idxs = np.load(os.path.join(self.data_path,"folds",str(fold),f"val_idx.npy"))
         elif fold_type == "train":
+            #import ipdb; ipdb.set_trace()
             self.idxs = np.load(os.path.join(self.data_path,"folds",str(fold),f"filtered_train_idx.npy"))
         else:
             raise("Invalid fold type")
         self.tensors_list = [torch.load(os.path.join(self.data_path,fold_subtype,"tensors",f"{idx}.pt")) for idx in self.idxs]
-
+        self.removed_list = None
         if fold_type == "train":
             self.targets_list = [process_labels(os.path.join(self.data_path,fold_subtype,"filtered_labels",f"{idx}.txt"), shift = 0) for idx in self.idxs]
+            self.removed_list = [process_labels(os.path.join(self.data_path,fold_subtype,"removed_labels",f"{idx}.txt"), shift = 0) for idx in self.idxs]
         else:
             self.targets_list = [process_labels(os.path.join(self.data_path,fold_subtype,"labels",f"{idx}.txt"), shift = 0) for idx in self.idxs]
 
@@ -59,7 +63,10 @@ class Range_Counter(Dataset, TorchDataset):
 
     def to_query(self, i: int) -> Query:
         mnist_indices = self.img_map[i]
-        classes, class_counts, count_ranges = self._range_count_digits(self.targets_list[i])
+        if self.removed_list is not None:
+           classes, class_counts, count_ranges = self._range_count_digits(self.targets_list[i], self.removed_list[i])
+        else:
+           classes, class_counts, count_ranges = self._range_count_digits(self.targets_list[i])
         # TODO : TAKING ONLY THE FIRST TENSORS TO HAVE AS MANY AS THE NUMBER OF DIGITS
         mnist_indices= mnist_indices[:len(self.targets_list[i])]
 
@@ -85,7 +92,7 @@ class Range_Counter(Dataset, TorchDataset):
         count_constant = []
         for count_c in class_counts:
             count_constant.append(Constant(count_c))
-        range_constamt = []
+        range_constant = []
         for range_c in count_ranges:
             range_constant.append(Constant(range_c))
         # Build query
@@ -103,26 +110,37 @@ class Range_Counter(Dataset, TorchDataset):
             ),
             subs,
         )
-       # import ipdb; ipdb.set_trace()
+        #import ipdb; ipdb.set_trace()
         return query
 
     def __len__(self):
         return len(self.tensors_list)
 
-    def _range_count_digits(self, ground_truth: list) -> Tuple[list,list,list]:
+    def _range_count_digits(self, ground_truth: list, removed=None) -> Tuple[list,list,list]:
         #classes        = [0,1,2,3,4,5,6,7,8,9]
         #count_classes  = [0,0,0,0,0,0,0,0,0,0]
         classes        = []
         count_classes  = []
         range_counts   = []
         values, counts = np.unique(ground_truth, return_counts=True)
+        if removed is not None:
+            rem_val, rem_counts = np.unique(removed, return_counts=True)
         for value,count in zip(values,counts):
            # import ipdb; ipdb.set_trace()
             #count_classes[value-1] = count
             #count_classes.append(count)
+            if removed is not None:
+                if value in rem_val:
+                    index_val = np.where(rem_val==value)
+                    rem_count = int(rem_counts[index_val])
+                    #import ipdb; ipdb.set_trace()
+                else:
+                    rem_count = 0
+            else:
+                rem_count = 0
             classes.append(value)
-            if count > 1:
-                count_classes.append(1)
+            if count + rem_count > self.range_case:
+                count_classes.append(self.range_case-rem_count)
                 range_counts.append(1)
             else:
                 range_counts.append(0)
