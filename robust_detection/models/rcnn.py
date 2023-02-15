@@ -456,8 +456,10 @@ class RCNN(pl.LightningModule):
         #metric.update(preds, target)
         #mAP = metric.compute()
 
-        return {"box_features":[l["box_features"] for l in loss_dict],"boxes_true":[t["boxes"] for t in targets], "scores":[l["scores"] for l in loss_dict],"targets":[t["labels"] for t in targets],  "preds":[l["labels"] for l in loss_dict],"idx":idx, "boxes": [l["boxes"] for l in loss_dict]}
-
+        if "boxes" in targets[0].keys():
+            return {"box_features":[l["box_features"] for l in loss_dict],"boxes_true":[t["boxes"] for t in targets], "scores":[l["scores"] for l in loss_dict],"targets":[t["labels"] for t in targets],  "preds":[l["labels"] for l in loss_dict],"idx":idx, "boxes": [l["boxes"] for l in loss_dict]}
+        else:
+            return {"box_features":[l["box_features"] for l in loss_dict],"boxes_true":[None for t in targets], "scores":[l["scores"] for l in loss_dict],"targets":[t["labels"] for t in targets],  "preds":[l["labels"] for l in loss_dict],"idx":idx, "boxes": [l["boxes"] for l in loss_dict]}
 
     @classmethod
     def add_dataset_specific_args(cls, parent):
