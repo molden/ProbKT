@@ -297,9 +297,9 @@ def filter_data(box_features, labels, boxes, classif, level = 0.99, in_label_che
 
 def select_data_to_label(box_features, labels, boxes, classif, agg_case=False, range_case = -1):
     wrap_model = WrapModel(classif)
-    
-    box_features = box_features[:len(labels)]
-    boxes = boxes[:len(labels)]
+    if range_case == -1: 
+       box_features = box_features[:len(labels)]
+       boxes = boxes[:len(labels)]
     preds = torch.argmax(wrap_model(box_features),1)
     #import ipdb; ipdb.set_trace()
     if range_case > -1:
@@ -556,13 +556,13 @@ def relabel_data(run_name, model_cls, data_cls, target_data_path = None, classif
     trainer = pl.Trainer(logger = False, gpus=1)
         
     # disabling the score thresholding for the training set
-    if model_cls == RCNN:
+    if model_cls == RCNN and range_case == -1:
        initial_score_thresh = model.model.roi_heads.score_thresh 
        model.model.roi_heads.score_thresh = 0.05
     #model.model.roi_heads.box_predictor.cls_score = classif.to(model.model.roi_heads.box_predictor.cls_score[0].weight.device)
     train_preds = trainer.predict(model, dataset.train_dataloader())
 
-    if model_cls == RCNN:
+    if model_cls == RCNN and range_case == -1:
        model.model.roi_heads.score_thresh = initial_score_thresh
 
 
