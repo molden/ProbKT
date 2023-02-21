@@ -162,13 +162,13 @@ def fine_tune(run_name, model_cls, data_cls, target_data_cls, target_data_path, 
     print("Loading DPL model ....")
     classifier = None
     dpl_loader, model_dpl, fold = fine_tune_utils.prepare_problog_model(
-        run_name, model_cls, batch_size=16, target_data_path=target_data_path, classif=classifier, detr=detr, agg_case=agg_case, range_case=range_case)
+        run_name, model_cls, target_data_cls, batch_size=16, target_data_path=target_data_path, classif=classifier, detr=detr)
     print("DPL model loaded.")
 
     classif = copy.deepcopy(
         model_dpl.networks['mnist_net'].network_module.classifier)
     val_acc = fine_tune_utils.evaluate_classifier(
-        classif, data_path=target_data_path, fold=fold, fold_type="val", agg_case=agg_case, range_case=range_case)
+        classif, target_data_cls, data_path=target_data_path, fold=fold, fold_type="val")
     print(f"Validation accuracy : {val_acc}")
 
     print("Training DPL model ...")

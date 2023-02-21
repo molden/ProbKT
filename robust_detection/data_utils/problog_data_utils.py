@@ -219,6 +219,7 @@ class MNIST_Prod(Dataset, TorchDataset):
     def to_query(self, i: int) -> Query:
         """Generate queries"""
 
+       # import ipdb; ipdb.set_trace()
         tensor_indices = self.img_map[i]
         prod_digit = self._prod_digits(self.targets_list[i])
 
@@ -247,13 +248,15 @@ class MNIST_Prod(Dataset, TorchDataset):
             ),
             subs,
         )
+        #import ipdb; ipdb.set_trace()
         return query
 
     def __len__(self):
         return len(self.tensors_list)
 
     def _prod_digits(self, target) -> int:
-        return target
+       # import ipdb; ipdb.set_trace()
+        return target['labels'].values[0]
 
     @classmethod
     def filter_data(self, box_features, labels, boxes, classif, level=0.99):
@@ -284,7 +287,15 @@ class MNIST_Prod(Dataset, TorchDataset):
         retained_index = retained_index[:number_objects]
 
         return box_features[retained_index], new_label
+    
+    @classmethod
+    def get_dpl_script(self, data_path):
+        return os.path.join(DATA_DIR, "..", "models", "multiply_digits.pl")
 
+    @classmethod
+    def evaluate_classifier(self, preds, labels):
+        #returns multiplication accuracy
+        return torch.prod(preds.sort()[0].long()) == torch.prod(torch.Tensor(labels).long().sort()[0])
 
 class MNIST_Sum(Dataset, TorchDataset):
     def __getitem__(self, index: int) -> Tuple[list, list, list]:

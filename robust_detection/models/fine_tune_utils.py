@@ -42,7 +42,7 @@ from deepproblog.dataset import DataLoader
 from robust_detection.utils import DATA_DIR
 
 
-def prepare_problog_model(run_name, model_cls, batch_size=16, target_data_path=None, classif=None, detr=False, agg_case=False, range_case=-1):
+def prepare_problog_model(run_name, model_cls, target_data_cls, batch_size=16, target_data_path=None, classif=None, detr=False):
     """
     - Feed the problog model directly
     - Feed the datasets
@@ -64,25 +64,12 @@ def prepare_problog_model(run_name, model_cls, batch_size=16, target_data_path=N
 
     fold = hparams.fold
 
-    if agg_case:
-        datasets = {
-            "train": MNIST_Sum(f"{hparams.data_path}", fold, fold_type="train"),
-            "val": MNIST_Sum(f"{hparams.data_path}", fold, fold_type="val"),
-            "test": MNIST_Sum(f"{hparams.data_path}", fold, fold_type="test"),
-        }
-    else:
-        if range_case > -1:
-            datasets = {
-                "train": Range_Counter(f"{hparams.data_path}", fold, fold_type="train", range_case=range_case),
-                "val": Range_Counter(f"{hparams.data_path}", fold, fold_type="val", range_case=range_case),
-                "test": Range_Counter(f"{hparams.data_path}", fold, fold_type="test", range_case=range_case),
-            }
-        else:
-            datasets = {
-                "train": MNIST_Counter(f"{hparams.data_path}", fold, fold_type="train"),
-                "val": MNIST_Counter(f"{hparams.data_path}", fold, fold_type="val"),
-                "test": MNIST_Counter(f"{hparams.data_path}", fold, fold_type="test"),
-            }
+
+    datasets = {
+            "train": target_data_cls(f"{hparams.data_path}", fold, fold_type="train"),
+            "val": target_data_cls(f"{hparams.data_path}", fold, fold_type="val"),
+            "test": target_data_cls(f"{hparams.data_path}", fold, fold_type="test"),
+    }
 
     if classif is None:
         if detr:
@@ -96,23 +83,8 @@ def prepare_problog_model(run_name, model_cls, batch_size=16, target_data_path=N
     net.cuda()
     net.optimizer = torch.optim.Adam(wrap_model.parameters(), lr=1e-2)
 
-    if "molecules" in hparams.data_path:
-        model_dpl = Model(os.path.join(
-            DATA_DIR, "..", "models", "count_molecules.pl"), [net])
-    elif "clevr" in hparams.data_path:
-        if range_case > -1:
-            model_dpl = Model(os.path.join(
-                DATA_DIR, "..", "models", "range_count_clevr.pl"), [net])
-        else:
-            model_dpl = Model(os.path.join(
-                DATA_DIR, "..", "models", "count_clevr.pl"), [net])
-    else:
-        if agg_case:
-            model_dpl = Model(os.path.join(
-                DATA_DIR, "..", "models", "sum_digits.pl"), [net])
-        else:
-            model_dpl = Model(os.path.join(
-                DATA_DIR, "..", "models", "count_objects.pl"), [net])
+    dpl_script = target_data_cls.get_dpl_script(f"{hparams.data_path}")
+    model_dpl = Model(dpl_script, [net])
     model_dpl.set_engine(ExactEngine(model_dpl), cache=True)
 
     # Change the name of the MNIST_Images class
@@ -129,7 +101,7 @@ def prepare_problog_model(run_name, model_cls, batch_size=16, target_data_path=N
     return loader, model_dpl, fold
 
 
-def evaluate_classifier(classif, data_path, fold, fold_type, threshold=0.65, agg_case=False, range_case=-1):
+def evaluate_classifier(classif, target_data_cls, data_path, fold, fold_type, threshold=0.65):
 
     classif.to("cpu")
     wrap_model = WrapModel(classif)
@@ -165,31 +137,10 @@ def evaluate_classifier(classif, data_path, fold, fold_type, threshold=0.65, agg
             #box_features = box_features[:len(labels)]
         #preds = torch.arange(10)[None,:].repeat(box_features.shape[0],1)[ wrap_model(box_features) > threshold ]
         preds = torch.argmax(wrap_model(box_features), 1)
-        if agg_case:
-            #import ipdb; ipdb.set_trace()
-            accs.append(torch.sum(preds.sort()[0].long()) == torch.sum(
-                torch.Tensor(labels).long().sort()[0]))
-        elif range_case > -1:
-            values_preds, count_preds = torch.unique(
-                preds, sorted=True, return_counts=True)
-            values_labels, count_labels = torch.unique(torch.tensor(
-                labels, dtype=torch.int64), sorted=True, return_counts=True)
-            #import ipdb; ipdb.set_trace()
-            if torch.equal(values_preds, values_labels):
-                count_preds_clamped = torch.clamp(count_preds, max=range_case)
-                count_labels_clamped = torch.clamp(
-                    count_labels, max=range_case)
-                # import ipdb; ipdb.set_trace()
-                accs.append(torch.equal(
-                    count_preds_clamped, count_labels_clamped))
-            else:
-                accs.append(False)
-        else:
-            accs.append(torch.equal(
-                preds.sort()[0].long(), torch.Tensor(labels).sort()[0].long()))
+        accs.append(target_data_cls.evaluate_classifier(preds,labels))
     accs = np.array(accs)
     return np.mean(accs)
-
+    
 
 def test_tensors_data(run_name, model_cls, data_cls):
     """
