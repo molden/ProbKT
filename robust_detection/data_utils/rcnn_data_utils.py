@@ -125,7 +125,7 @@ class Objects_RCNN_Predictor(pl.LightningDataModule):
 
 
 class Objects_RCNN(pl.LightningDataModule):
-    def __init__(self, batch_size, data_path, fold, num_workers=4, filtered=False, box_loss_mask=False, skip_data_path=None, rgb=False, re_train=False, og_data_dir=None, og_data_path=None, in_memory=False, **kwargs):
+    def __init__(self, batch_size, data_path, fold, num_workers=4, filtered=False, box_loss_mask=False, skip_data_path=None, rgb=False, re_train=False, og_data_dir=None, og_data_path=None, in_memory=False, target_data_cls=None, **kwargs):
         super().__init__()
         self.batch_size = batch_size
         self.num_workers = num_workers
@@ -144,7 +144,7 @@ class Objects_RCNN(pl.LightningDataModule):
         self.in_memory = in_memory
         self.rgb = rgb
         self.filtered = filtered
-
+        self.target_data_cls = target_data_cls
         self.base_class = Objects_Detection_Dataset
 
     def prepare_data(self):
@@ -183,7 +183,6 @@ class Objects_RCNN(pl.LightningDataModule):
             og_train_ds = Subset(dataset_og, train_idx)
             self.train = torch.utils.data.ConcatDataset(
                 [re_train_ds, og_train_ds])
-
             #self.train = re_train_ds
         elif self.skip_data_path is not None:
             dataset_train1 = self.base_class(os.path.join(
@@ -209,10 +208,12 @@ class Objects_RCNN(pl.LightningDataModule):
                 train_idx = np.load(os.path.join(DATA_DIR, f"{self.data_path}", "folds", str(
                     self.fold), f"filtered_train_idx.npy"))
             self.train = Subset(dataset, train_idx)
-
+        
         val_idx = np.load(os.path.join(
             DATA_DIR, f"{self.data_path}", "folds", str(self.fold), "val_idx.npy"))
-
+        if self.target_data_cls is not None:
+           dataset = self.base_class(os.path.join(DATA_DIR, self.data_path, "train"),
+                                      self.transforms, box_loss_mask=self.box_loss_mask, rgb=self.rgb, in_memory=self.in_memory, target_data_cls=self.target_data_cls)
         self.val = Subset(dataset, val_idx)
         self.test = dataset_test
         self.test_ood = dataset_ood
@@ -328,7 +329,7 @@ class Objects_Predictor_Dataset(Dataset):
 
 class Objects_Detection_Dataset(Dataset):
 
-    def __init__(self, data_dir, transforms, box_loss_mask=False, rgb=False, re_train=False, in_memory=False):
+    def __init__(self, data_dir, transforms, box_loss_mask=False, rgb=False, re_train=False, in_memory=False, target_data_cls=None):
         super().__init__()
         self.data_dir = data_dir
         self.transforms = transforms
@@ -347,6 +348,7 @@ class Objects_Detection_Dataset(Dataset):
                     f"{self.data_dir}/labels/{f}") for f in os.listdir(f"{self.data_dir}/labels/")}
 
         self.in_memory = in_memory
+        self.target_data_cls = target_data_cls
 
         if "molecules" in data_dir:
             self.label_shift = 1
@@ -382,11 +384,19 @@ class Objects_Detection_Dataset(Dataset):
         w, h = img.size
         obj_idx = 1
         for index, row in labels_df.iterrows():
-            labels.append(int(row['label'])+self.label_shift)
-            xmin = int(row['xmin'])
-            xmax = int(row['xmax'])
-            ymin = int(row['ymin'])
-            ymax = int(row['ymax'])
+            ###TODO this needs to be a target_data_cls method if this is set
+            if self.target_data_cls is None:
+                labels.append(int(row['label'])+self.label_shift)
+                xmin = int(row['xmin'])
+                xmax = int(row['xmax'])
+                ymin = int(row['ymin'])
+                ymax = int(row['ymax'])
+            else:
+                labels.append(self.target_data_cls.read_labelrow(row))
+                xmin = 0
+                xmax = 0
+                ymin = 0
+                ymax = 0
             if self.box_loss_mask:
                 boxes.append([0, 0, 0, 0])
             else:

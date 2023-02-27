@@ -273,7 +273,7 @@ class RCNN_Predictor(pl.LightningModule):
         return
 
 class RCNN(pl.LightningModule):
-    def __init__(self, len_dataloader, hidden_layer, num_classes, score_thresh,model_type = "mask_rcnn", pre_trained = True, backbone_run_name = None, agg_case=False, **kwargs):
+    def __init__(self, len_dataloader, hidden_layer, num_classes, score_thresh,model_type = "mask_rcnn", pre_trained = True, backbone_run_name = None, target_data_cls=None, **kwargs):
         super().__init__()
         self.save_hyperparameters()
         self.num_classes = num_classes
@@ -285,7 +285,7 @@ class RCNN(pl.LightningModule):
 
         self.pre_trained = pre_trained
         self.hungarian_fine_tuning = False
-        self.agg_case = agg_case
+        self.target_data_cls = target_data_cls
 
     def configure_optimizers(self):
         opt = torch.optim.SGD(self.parameters(), lr= self.hparams["lr"],
@@ -427,9 +427,11 @@ class RCNN(pl.LightningModule):
 
     def validation_step(self,batch,batch_idx):
         images, targets, _ = batch
-        loss_dict = self(images, targets, val = True)
-        if self.agg_case:
-            accuracy = self.compute_sum_accuracy(targets,loss_dict)
+        self.model.eval()
+        loss_dict = self.model(images)
+        #loss_dict = self(images, targets, val = True)
+        if self.target_data_cls is not None:
+            accuracy = self.target_data_cls.compute_accuracy(targets,loss_dict)
         else:
             accuracy = self.compute_accuracy(targets,loss_dict)
         self.log("val_acc", accuracy,on_epoch = True)
@@ -470,7 +472,7 @@ class RCNN(pl.LightningModule):
         parser.add_argument('--model_type', type=str, default="rcnn", help = "type of model to use")
         parser.add_argument('--backbone_run_name', type=str, default=None, help = "run_name of CNN for backbone to be used")
         parser.add_argument('--pre_trained', type=str2bool, default=True)
-        parser.add_argument('--agg_case', type=str2bool, default=False)
+        parser.add_argument('--target_data_cls', type=str, default=None)
         return parser
 
 

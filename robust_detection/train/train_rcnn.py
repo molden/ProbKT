@@ -21,7 +21,6 @@ def main(model_cls, data_cls, args, logger = None):
     # use our dataset and defined transformations
     dataset = data_cls(**vars(args))
     dataset.prepare_data()
-    
     model = model_cls(len_dataloader = len(dataset.val_dataloader()),**vars(args))
    
     if logger is None:

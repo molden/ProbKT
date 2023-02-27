@@ -535,7 +535,7 @@ def fine_tune_detr(run_name, model_cls, data_cls, target_data_path=None, logger=
     return logger.experiment.id
 
 
-def relabel_data(run_name, model_cls, data_cls, target_data_path=None, classif=None, agg_case=False, range_case=-1):
+def relabel_data(run_name, model_cls, data_cls, target_data_cls, target_data_path=None, classif=None):
     """
     If classif is None, it uses the classifier from the pre-trained RCNN 
     """
@@ -582,9 +582,7 @@ def relabel_data(run_name, model_cls, data_cls, target_data_path=None, classif=N
             boxes = batch["boxes"][img_idx]
             labels = process_labels(os.path.join(
                 DATA_DIR, hparams.data_path, "train", "labels", f"{idx}.txt"))
-
-            new_labels = select_data_to_label(
-                box_features, labels, boxes, classif, agg_case=agg_case, range_case=range_case)
+            new_labels = target_data_cls.select_data_to_label(box_features, labels, boxes, classif)
             if new_labels is not None:
                 new_labels.to_csv(os.path.join(
                     DATA_DIR, hparams.data_path, "train", "re_labels", f"{idx}.txt"), index=False)

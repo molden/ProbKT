@@ -180,9 +180,9 @@ def fine_tune(run_name, model_cls, data_cls, target_data_cls, target_data_path, 
         classif = copy.deepcopy(
             model_dpl.networks['mnist_net'].network_module.classifier)
         val_acc = fine_tune_utils.evaluate_classifier(
-            classif, data_path=target_data_path, fold=fold, fold_type="val", agg_case=agg_case, range_case=range_case)
+            classif, target_data_cls, data_path=target_data_path, fold=fold, fold_type="val")
         train_acc = fine_tune_utils.evaluate_classifier(
-            classif, data_path=target_data_path, fold=fold, fold_type="train", agg_case=agg_case, range_case=range_case)
+            classif, target_data_cls, data_path=target_data_path, fold=fold, fold_type="train")
         print(
             f"Training accuracy : {train_acc:.3f} - Validation accuracy : {val_acc:.3f}")
         if logger is not None:
@@ -199,8 +199,8 @@ def fine_tune(run_name, model_cls, data_cls, target_data_cls, target_data_path, 
     print(f"restoring from {best_model_path} with val_acc {val_acc_best}")
     classif.load_state_dict(torch.load(best_model_path))
     print("Creating new labels .....")
-    fine_tune_utils.relabel_data(run_name, model_cls, data_cls, target_data_path=target_data_path,
-                                 classif=classif, agg_case=agg_case, range_case=range_case)
+    fine_tune_utils.relabel_data(run_name, model_cls, data_cls, target_data_cls, target_data_path=target_data_path,
+                                 classif=classif)
     print("Done.")
     return
 
@@ -208,7 +208,7 @@ def fine_tune(run_name, model_cls, data_cls, target_data_cls, target_data_path, 
 #    fine_tune_utils.tune_detr(run_name, model_cls, data_cls, target_data_path
 
 
-def re_train(run_name, model_cls, data_cls, target_data_path, logger=None, agg_case=False, range_case=-1):
+def re_train(run_name, model_cls, data_cls, target_data_path, target_data_cls, logger=None):
 
     api = wandb.Api()
     run = api.run(f"{ENTITY}/object_detection/{run_name}")
@@ -221,7 +221,7 @@ def re_train(run_name, model_cls, data_cls, target_data_path, logger=None, agg_c
     hparams = model.hparams
     hparams.re_train = True
     hparams.og_data_path = hparams.data_path
-    if "molecules" in target_data_path:
+    if "molecules" in target_data_path:#TODO imlpement this in target_data_cls 
         hparams.og_data_path = "molecules/molecules_skip"  # TODO
     # shifting the label index by 1 in the mnist case (0 is background in RCNN)
     elif "mnist" in target_data_path:
@@ -232,14 +232,15 @@ def re_train(run_name, model_cls, data_cls, target_data_path, logger=None, agg_c
     hparams.data_path = target_data_path
     #hparams.batch_size = 8
     hparams.batch_size = 1
-    if hasattr(hparams, 'agg_case'):
-        hparams.agg_case = agg_case
-    else:
-        setattr(hparams, 'agg_case', agg_case)
-    if hasattr(hparams, 'range_case'):
-        hparams.range_case = range_case
-    else:
-        setattr(hparams, 'range_case', range_case)
+    setattr(hparams, 'target_data_cls', target_data_cls)
+   # if hasattr(hparams, 'agg_case'):
+   #     hparams.agg_case = agg_case
+   # else:
+   #     setattr(hparams, 'agg_case', agg_case)
+   # if hasattr(hparams, 'range_case'):
+   #     hparams.range_case = range_case
+   # else:
+   #     setattr(hparams, 'range_case', range_case)
     #hparams.hungarian_fine_tuning = hungarian_fine_tuning
     hparams = Namespace(**hparams)
     del hparams.len_dataloader

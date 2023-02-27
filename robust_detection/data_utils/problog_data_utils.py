@@ -256,7 +256,7 @@ class MNIST_Prod(Dataset, TorchDataset):
 
     def _prod_digits(self, target) -> int:
        # import ipdb; ipdb.set_trace()
-        return target['labels'].values[0]
+        return target['label'].values[0]
 
     @classmethod
     def filter_data(self, box_features, labels, boxes, classif, level=0.99):
@@ -281,13 +281,21 @@ class MNIST_Prod(Dataset, TorchDataset):
                     number_objects -= 1
 
         new_label = pd.DataFrame()
-        new_label["labels"] = [label]
+        new_label["label"] = [label]
         
         # By assumption, there are only 3 digits in the image
         retained_index = retained_index[:number_objects]
 
         return box_features[retained_index], new_label
-    
+   
+    @classmethod
+    def compute_accuracy(self, targets, preds):
+        return torch.Tensor([torch.prod(targets[i]["labels"].sort()[0]) == torch.prod(preds[i]["labels"].sort()[0]) for i in range(len(targets)) ]).mean()
+
+    @classmethod
+    def read_labelrow(self, row):
+        return int(row['label'])  
+
     @classmethod
     def get_dpl_script(self, data_path):
         return os.path.join(DATA_DIR, "..", "models", "multiply_digits.pl")
@@ -296,6 +304,22 @@ class MNIST_Prod(Dataset, TorchDataset):
     def evaluate_classifier(self, preds, labels):
         #returns multiplication accuracy
         return torch.prod(preds.sort()[0].long()) == torch.prod(torch.Tensor(labels).long().sort()[0])
+
+    @classmethod
+    def select_data_to_label(self, box_features, labels, boxes, classif):
+        wrap_model = WrapModel(classif)
+        preds = torch.argmax(wrap_model(box_features), 1)
+        #import ipdb; ipdb.set_trace()
+        if torch.prod(preds.sort()[0].long()) == torch.prod(torch.Tensor(labels).long().sort()[0]):
+            df = pd.DataFrame(preds, columns=["label"])
+
+            df["xmin"] = boxes[:, 0].long()
+            df["ymin"] = boxes[:, 1].long()
+            df["xmax"] = boxes[:, 2].long()
+            df["ymax"] = boxes[:, 3].long()
+            return df
+        else:
+            return None
 
 class MNIST_Sum(Dataset, TorchDataset):
     def __getitem__(self, index: int) -> Tuple[list, list, list]:

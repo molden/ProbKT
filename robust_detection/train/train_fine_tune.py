@@ -3,7 +3,7 @@ from robust_detection.train import fine_tune
 import wandb
 from robust_detection.models.rcnn import RCNN
 from robust_detection.models.detr import DETR
-from robust_detection.data_utils.rcnn_data_utils import Objects_RCNN_Pred
+from robust_detection.data_utils.rcnn_data_utils import Objects_RCNN_Pred, Objects_RCNN
 from argparse import ArgumentParser
 from pytorch_lightning.loggers import WandbLogger
 from robust_detection.data_utils.problog_data_utils import MNIST_Prod
@@ -98,11 +98,12 @@ if __name__ == "__main__":
         )
 
     #fine_tune.fine_tune(run_name, model_cls, data_cls, target_data_path, num_epochs_dpl = 20, logger = logger, detr=args.detr, agg_case = args.agg_case, range_case = args.range_case)
-    fine_tune.fine_tune(run_name, model_cls, data_cls, target_data_cls, target_data_path, num_epochs_dpl=20,
+    fine_tune.fine_tune(run_name, model_cls, data_cls, target_data_cls, target_data_path, num_epochs_dpl=2,
                         logger=logger, detr=args.detr, dpl_path=args.dpl_path, filter_level=args.filter_level)
     if args.detr:
         re_run_id = fine_tune.re_train_detr(
             run_name, model_cls, data_cls, target_data_path, logger=logger, agg_case=args.agg_case)
     else:
-        re_run_id = fine_tune.re_train(run_name, model_cls, data_cls, target_data_path,
-                                       logger=logger, agg_case=args.agg_case, range_case=args.range_case)
+        data_cls = Objects_RCNN
+        re_run_id = fine_tune.re_train(run_name, model_cls, data_cls, target_data_path, target_data_cls,
+                                       logger=logger)
