@@ -418,7 +418,7 @@ def create_tensors_data(run_name, model_cls, data_cls, target_data_path = None, 
             if range_case > -1:
                 box_features, new_labels, removed_labels = filter_data(box_features, labels, boxes, classif, level = filter_level, in_label_check = False, range_case=range_case)
             else:
-                box_features, new_labels = filter_data(box_features, labels, boxes, classif, level = filter_level, in_label_check = ~agg_case)
+                box_features, new_labels = filter_data(box_features, labels, boxes, classif, level = filter_level, in_label_check = not agg_case)
 
             if new_labels is not None:
                 torch.save(box_features,os.path.join(DATA_DIR,hparams.data_path,"train","tensors",f"{idx}.pt"))

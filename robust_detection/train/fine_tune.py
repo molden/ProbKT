@@ -161,7 +161,7 @@ def fine_tune(run_name, model_cls, data_cls, target_data_path, num_epochs_dpl = 
         if range_case > -1:
             filter_level = 0.998
         else:
-            filter_level = 0.99
+            filter_level = 0.9995
     fine_tune_utils.create_tensors_data(run_name, model_cls, data_cls, target_data_path = target_data_path, classif = None, filter_level = filter_level, detr=detr, agg_case = agg_case, range_case = range_case)
     print("Data Filtered.")
 
