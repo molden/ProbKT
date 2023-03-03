@@ -1,12 +1,13 @@
 from robust_detection.wandb_config import ENTITY
 from robust_detection.train import fine_tune
 import wandb
+import sys
 from robust_detection.models.rcnn import RCNN
 from robust_detection.models.detr import DETR
 from robust_detection.data_utils.rcnn_data_utils import Objects_RCNN_Pred, Objects_RCNN
 from argparse import ArgumentParser
 from pytorch_lightning.loggers import WandbLogger
-from robust_detection.data_utils.problog_data_utils import MNIST_Prod
+from robust_detection.data_utils.problog_data_utils import MNIST_Prod, MNIST_Sum
 
 """
     print("Filtering data .....")
@@ -48,7 +49,7 @@ if __name__ == "__main__":
                         help='probability threshold for filtering out objects during fine tuning', default=0.99)
     parser.add_argument('--score_thresh', type=float,
                         help='thresholding score for the prediction model - if None, use default', default=0.05)
-    parser.add_argument('--target_data_type', type=str,
+    parser.add_argument('--target_data_type', type=str, choices=['MNIST_Prod','MNIST_Sum'],
                         help='Name of Data Class to use for fine tuning')
     #parser.add_argument('--agg_case', type=bool, help='set to true to fine  tune in the aggregation mode', default=False)
     #parser.add_argument('--range_case', type=int, help='the upper limit of number of objects in order to start using range, set to -1 to ignore ranges', default=-1)
@@ -78,9 +79,9 @@ if __name__ == "__main__":
     data_cls = Objects_RCNN_Pred
 
     # Selector for the target data class
-    if args.target_data_type == "MNIST_prod":
-        target_data_cls = MNIST_Prod
-
+    #if args.target_data_type == "MNIST_prod":
+    #    target_data_cls = MNIST_Prod
+    target_data_cls = getattr(sys.modules[__name__], args.target_data_type)
     run_name = best_run.id
     print(run_name)
     #import ipdb; ipdb.set_trace()
@@ -98,7 +99,7 @@ if __name__ == "__main__":
         )
 
     #fine_tune.fine_tune(run_name, model_cls, data_cls, target_data_path, num_epochs_dpl = 20, logger = logger, detr=args.detr, agg_case = args.agg_case, range_case = args.range_case)
-    fine_tune.fine_tune(run_name, model_cls, data_cls, target_data_cls, target_data_path, num_epochs_dpl=2,
+    fine_tune.fine_tune(run_name, model_cls, data_cls, target_data_cls, target_data_path, num_epochs_dpl=20,
                         logger=logger, detr=args.detr, dpl_path=args.dpl_path, filter_level=args.filter_level)
     if args.detr:
         re_run_id = fine_tune.re_train_detr(

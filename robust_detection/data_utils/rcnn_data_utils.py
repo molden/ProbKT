@@ -392,7 +392,7 @@ class Objects_Detection_Dataset(Dataset):
                 ymin = int(row['ymin'])
                 ymax = int(row['ymax'])
             else:
-                labels.append(self.target_data_cls.read_labelrow(row))
+                labels.append(self.target_data_cls.read_labelrow(row)+self.label_shift)
                 xmin = 0
                 xmax = 0
                 ymin = 0

@@ -325,10 +325,6 @@ class MNIST_Sum(Dataset, TorchDataset):
     def __getitem__(self, index: int) -> Tuple[list, list, list]:
         import ipdb
         ipdb.set_trace()
-        data_item = self.tensors_list[index]
-        sum_digit = self._sum_digits(self.targets_list[index])
-        img_digits = [tensor for tensor in data_item]
-        return img_digits, sum_digit
 
     def __init__(
         self,
@@ -376,12 +372,12 @@ class MNIST_Sum(Dataset, TorchDataset):
 
     def to_query(self, i: int) -> Query:
         """Generate queries"""
-        mnist_indices = self.img_map[i]
+        tensor_indices = self.img_map[i]
         sum_digit = self._sum_digits(self.targets_list[i])
         # TODO : TAKING ONLY THE FIRST TENSORS TO HAVE AS MANY AS THE NUMBER OF DIGITS
-        mnist_indices = mnist_indices[:len(self.targets_list[i])]
+        tensor_indices = tensor_indices[:len(self.targets_list[i])]
 
-        label_len = len(mnist_indices)
+        label_len = len(tensor_indices)
         # Build substitution dictionary for the arguments
         subs = dict()
         # var_names = [Constant(-1)]
@@ -392,7 +388,7 @@ class MNIST_Sum(Dataset, TorchDataset):
                 "tensor",
                 Term(
                     self.dataset_name,
-                    Constant(mnist_indices[i]),
+                    Constant(tensor_indices[i]),
                 ),
             )
             var_names.append(t)
@@ -419,6 +415,81 @@ class MNIST_Sum(Dataset, TorchDataset):
         for value in ground_truth:
             sum_digit += value
         return sum_digit
+
+    @classmethod
+    def compute_accuracy(self, targets, preds):
+        return torch.Tensor([torch.sum(targets[i]["labels"].sort()[0]) == torch.sum(preds[i]["labels"].sort()[0]) for i in range(len(targets)) ]).mean()
+
+    @classmethod
+    def read_labelrow(self, row):
+        return int(row['label'])
+
+    @classmethod
+    def filter_data(self, box_features, labels_df, boxes, classif, level=0.99):
+        labels = []
+        shift=1
+        for index, row in labels_df.iterrows():
+            labels.append(int(row['label']))
+
+        assert(level > 0.5)
+        og_labels = copy.deepcopy(labels)
+        wrap_model = WrapModel(classif)
+        # get the index and the values of the confident predictions
+        confident_index, confident_preds = torch.where(
+            wrap_model(torch.clone(box_features)) > level)
+        #import ipdb; ipdb.set_trace()
+        # initialized the retained index with the full tensor
+        retained_index = [i for i in range(box_features.shape[0])]
+        removed_labels = []
+        #label = labels.label.item()
+        number_objects = 3 #Exactly 3 digits per image in this dataset
+        for i in range(len(confident_index)):
+            # only one element in the list = the product of the digits in the image.
+            if number_objects > 2:
+               retained_index.remove(confident_index[i]) # remove this tensor from the data
+               #import ipdb; ipdb.set_trace()
+               try:
+                   labels.remove(confident_preds[i].item()) 
+               except ValueError:
+                   import ipdb; ipdb.set_trace()
+               number_objects -= 1
+
+        
+        # By assumption, there are only 3 digits in the image
+        retained_index = retained_index[:number_objects]
+        df = pd.DataFrame(labels, columns = ["label"])
+        df["xmin"] = 0
+        df["ymin"] = 0
+        df["xmax"] = 0
+        df["ymax"] = 0
+
+
+        return box_features[retained_index], df
+
+    @classmethod
+    def get_dpl_script(self, data_path):
+        return os.path.join(DATA_DIR, "..", "models", "sum_digits.pl")
+
+    @classmethod
+    def evaluate_classifier(self, preds, labels):
+        #returns sum accuracy
+        return torch.sum(preds.sort()[0].long()) == torch.sum(torch.Tensor(labels).long().sort()[0])
+
+    @classmethod
+    def select_data_to_label(self, box_features, labels, boxes, classif):
+        wrap_model = WrapModel(classif)
+        preds = torch.argmax(wrap_model(box_features), 1)
+        #import ipdb; ipdb.set_trace()
+        if torch.sum(preds.sort()[0].long()) == torch.sum(torch.Tensor(labels).long().sort()[0]):
+            df = pd.DataFrame(preds, columns=["label"])
+
+            df["xmin"] = boxes[:, 0].long()
+            df["ymin"] = boxes[:, 1].long()
+            df["xmax"] = boxes[:, 2].long()
+            df["ymax"] = boxes[:, 3].long()
+            return df
+        else:
+            return None
 
 
 class MNIST_Counter(Dataset, TorchDataset):
