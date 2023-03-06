@@ -443,8 +443,8 @@ class RCNN(pl.LightningModule):
         #loss_dict = self(images, targets, val = True)
         loss_dict = self.model(images)
         if self.target_data_cls is not None:
-            #accuracy = self.target_data_cls.compute_accuracy(targets,loss_dict)
-            accuracy = self.compute_accuracy(targets,loss_dict)
+            accuracy = self.target_data_cls.compute_accuracy(targets,loss_dict)
+            #accuracy = self.compute_accuracy(targets,loss_dict)
         else:
             accuracy = self.compute_accuracy(targets,loss_dict)
         self.log("test_acc", accuracy,on_epoch = True)

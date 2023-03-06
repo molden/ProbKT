@@ -290,7 +290,8 @@ class MNIST_Prod(Dataset, TorchDataset):
    
     @classmethod
     def compute_accuracy(self, targets, preds):
-        return torch.Tensor([torch.prod(targets[i]["labels"].sort()[0]) == torch.prod(preds[i]["labels"].sort()[0]) for i in range(len(targets)) ]).mean()
+        #substract 1 to deal with label shift
+        return torch.Tensor([torch.prod(targets[i]["labels"].sort()[0]-1) == torch.prod(preds[i]["labels"].sort()[0]-1) for i in range(len(targets)) ]).mean()
 
     @classmethod
     def read_labelrow(self, row):
@@ -307,6 +308,9 @@ class MNIST_Prod(Dataset, TorchDataset):
 
     @classmethod
     def select_data_to_label(self, box_features, labels, boxes, classif):
+        #exploit background information (exactly 3 digits on image)
+        box_features = box_features[:3]
+        boxes = boxes[:3]
         wrap_model = WrapModel(classif)
         preds = torch.argmax(wrap_model(box_features), 1)
         #import ipdb; ipdb.set_trace()
@@ -477,6 +481,7 @@ class MNIST_Sum(Dataset, TorchDataset):
 
     @classmethod
     def select_data_to_label(self, box_features, labels, boxes, classif):
+        #exploit background information (exactly 3 digits on image)
         box_features = box_features[:len(labels)]
         boxes = boxes[:len(labels)]
 
