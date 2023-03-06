@@ -477,6 +477,9 @@ class MNIST_Sum(Dataset, TorchDataset):
 
     @classmethod
     def select_data_to_label(self, box_features, labels, boxes, classif):
+        box_features = box_features[:len(labels)]
+        boxes = boxes[:len(labels)]
+
         wrap_model = WrapModel(classif)
         preds = torch.argmax(wrap_model(box_features), 1)
         #import ipdb; ipdb.set_trace()
