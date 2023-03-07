@@ -7,7 +7,7 @@ from robust_detection.models.detr import DETR
 from robust_detection.data_utils.rcnn_data_utils import Objects_RCNN_Pred, Objects_RCNN
 from argparse import ArgumentParser
 from pytorch_lightning.loggers import WandbLogger
-from robust_detection.data_utils.problog_data_utils import MNIST_Prod, MNIST_Sum
+from robust_detection.data_utils.problog_data_utils import MNIST_Prod, MNIST_Sum, Objects_Counter
 
 """
     print("Filtering data .....")
@@ -49,7 +49,7 @@ if __name__ == "__main__":
                         help='probability threshold for filtering out objects during fine tuning', default=0.99)
     parser.add_argument('--score_thresh', type=float,
                         help='thresholding score for the prediction model - if None, use default', default=0.05)
-    parser.add_argument('--target_data_type', type=str, choices=['MNIST_Prod','MNIST_Sum'],
+    parser.add_argument('--target_data_type', type=str, choices=['MNIST_Prod','MNIST_Sum','Objects_Counter'],
                         help='Name of Data Class to use for fine tuning')
     #parser.add_argument('--agg_case', type=bool, help='set to true to fine  tune in the aggregation mode', default=False)
     #parser.add_argument('--range_case', type=int, help='the upper limit of number of objects in order to start using range, set to -1 to ignore ranges', default=-1)

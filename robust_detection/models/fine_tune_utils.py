@@ -18,7 +18,7 @@ from robust_detection.models.rcnn_utils import WrapModel
 import numpy as np
 import copy
 
-from robust_detection.data_utils.problog_data_utils import MNIST_Sum, MNIST_Counter, MNIST_Images, Range_Counter
+from robust_detection.data_utils.problog_data_utils import MNIST_Sum, Objects_Counter, MNIST_Images, Range_Counter
 
 from deepproblog.engines import ApproximateEngine, ExactEngine
 from deepproblog.evaluate import get_confusion_matrix
@@ -87,7 +87,7 @@ def prepare_problog_model(run_name, model_cls, target_data_cls, batch_size=16, t
     model_dpl = Model(dpl_script, [net])
     model_dpl.set_engine(ExactEngine(model_dpl), cache=True)
 
-    # Change the name of the MNIST_Images class
+    # Change the name of the MNIST_Images class to a more general name
     Images_train = MNIST_Images(datasets["train"])
     Images_val = MNIST_Images(datasets["val"])
     Images_test = MNIST_Images(datasets["test"])

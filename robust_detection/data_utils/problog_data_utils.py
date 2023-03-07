@@ -500,7 +500,7 @@ class MNIST_Sum(Dataset, TorchDataset):
             return None
 
 
-class MNIST_Counter(Dataset, TorchDataset):
+class Objects_Counter(Dataset, TorchDataset):
 
     def __getitem__(self, index: int) -> Tuple[list, list, list]:
         import ipdb
@@ -516,7 +516,7 @@ class MNIST_Counter(Dataset, TorchDataset):
         fold,
         fold_type,
     ):
-        super(MNIST_Counter, self).__init__()
+        super(Objects_Counter, self).__init__()
 
         self.dataset_name = fold_type
 
@@ -559,13 +559,13 @@ class MNIST_Counter(Dataset, TorchDataset):
     def to_query(self, i: int) -> Query:
         """Generate queries"""
         # import ipdb; ipdb.set_trace()
-        mnist_indices = self.img_map[i]
-        classes, count_classes = self._count_digits(self.targets_list[i])
+        tensor_indices = self.img_map[i]
+        classes, count_classes = self._count_objects(self.targets_list[i])
         # TODO : TAKING ONLY THE FIRST TENSORS TO HAVE AS MANY AS THE NUMBER OF DIGITS
-        mnist_indices = mnist_indices[:len(self.targets_list[i])]
+        tensor_indices = tensor_indices[:len(self.targets_list[i])]
 
         # label_len = self.dataset.label_len_list[i]
-        label_len = len(mnist_indices)
+        label_len = len(tensor_indices)
         # Build substitution dictionary for the arguments
         subs = dict()
        # var_names = [Constant(-1)]
@@ -576,7 +576,7 @@ class MNIST_Counter(Dataset, TorchDataset):
                 "tensor",
                 Term(
                     self.dataset_name,
-                    Constant(mnist_indices[i]),
+                    Constant(tensor_indices[i]),
                 ),
             )
             var_names.append(t)
@@ -606,7 +606,7 @@ class MNIST_Counter(Dataset, TorchDataset):
     def __len__(self):
         return len(self.tensors_list)
 
-    def _count_digits(self, ground_truth: list) -> Tuple[list, list]:
+    def _count_objects(self, ground_truth: list) -> Tuple[list, list]:
         # classes        = [0,1,2,3,4,5,6,7,8,9]
         # count_classes  = [0,0,0,0,0,0,0,0,0,0]
         classes = []
@@ -619,6 +619,84 @@ class MNIST_Counter(Dataset, TorchDataset):
             classes.append(value)
         # import ipdb; ipdb.set_trace()
         return classes, count_classes
+
+    @classmethod  
+    def compute_accuracy(self, targets, preds):
+        return torch.Tensor([torch.equal(targets[i]["labels"].sort()[0],preds[i]["labels"].sort()[0]) for i in range(len(targets)) ]).mean()
+
+    @classmethod 
+    def read_labelrow(self, row):
+        return int(row['label'])
+
+    @classmethod
+    def filter_data(self, box_features, labels_df, boxes, classif, level=0.99):
+        labels = []
+        shift=1
+        for index, row in labels_df.iterrows():
+            labels.append(int(row['label']))
+
+        assert(level > 0.5)
+        og_labels = copy.deepcopy(labels)
+        wrap_model = WrapModel(classif)
+        # get the index and the values of the confident predictions
+        confident_index, confident_preds = torch.where(
+            wrap_model(torch.clone(box_features)) > level)
+        #import ipdb; ipdb.set_trace()
+        # initialized the retained index with the full tensor
+        retained_index = [i for i in range(box_features.shape[0])]
+        removed_labels = []
+        #label = labels.label.item()
+        for i in range(len(confident_index)):
+            # only one element in the list = the product of the digits in the image.
+            if len(labels) <= 2: # at least two prediction left per image
+               break
+            else:
+               if confident_preds[i].item() in labels:
+                  retained_index.remove(confident_index[i]) # remove this tensor from the data
+                  labels.remove(confident_preds[i].item())
+        if len(retained_index)>4 and level < 1.:
+           return None, None
+        if len(retained_index) < len(labels):
+           return None, None
+        df = pd.DataFrame(labels, columns = ["label"])
+        df["xmin"] = 0
+        df["ymin"] = 0
+        df["xmax"] = 0
+        df["ymax"] = 0
+
+
+        return box_features[retained_index], df
+
+    @classmethod
+    def get_dpl_script(self, data_path):
+        if "clevr" in data_path:
+           return os.path.join(DATA_DIR, "..", "models", "count_clevr.pl")
+        else:
+           return os.path.join(DATA_DIR, "..", "models", "count_objects.pl")
+
+    @classmethod
+    def evaluate_classifier(self, preds, labels):
+        return torch.equal(preds.sort()[0].long(), torch.Tensor(labels).sort()[0].long())
+
+    @classmethod
+    def select_data_to_label(self, box_features, labels, boxes, classif):
+        #exploit background information (exactly 3 digits on image)
+        box_features = box_features[:len(labels)]
+        boxes = boxes[:len(labels)]
+
+        wrap_model = WrapModel(classif)
+        preds = torch.argmax(wrap_model(box_features), 1)
+        #import ipdb; ipdb.set_trace()
+        if torch.equal(preds.sort()[0].long(), torch.Tensor(labels).long().sort()[0]):
+            df = pd.DataFrame(preds, columns=["label"])
+
+            df["xmin"] = boxes[:, 0].long()
+            df["ymin"] = boxes[:, 1].long()
+            df["xmax"] = boxes[:, 2].long()
+            df["ymax"] = boxes[:, 3].long()
+            return df
+        else:
+            return None
 
 
 class MNIST_Images(object):
