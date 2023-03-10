@@ -392,11 +392,16 @@ def create_tensors_data(run_name, model_cls, data_cls, target_data_cls, target_d
                   "train", "filtered_labels"), ignore_errors=True)
     shutil.rmtree(os.path.join(DATA_DIR, hparams.data_path,
                   "test", "filtered_labels"), ignore_errors=True)
+    shutil.rmtree(os.path.join(DATA_DIR,hparams.data_path,"train","removed_labels"),ignore_errors = True)
+    shutil.rmtree(os.path.join(DATA_DIR,hparams.data_path,"test","removed_labels"), ignore_errors = True)
+
 
     os.makedirs(os.path.join(DATA_DIR, hparams.data_path,
                 "train", "filtered_labels"), exist_ok=True)
     os.makedirs(os.path.join(DATA_DIR, hparams.data_path,
                 "test", "filtered_labels"), exist_ok=True)
+    os.makedirs(os.path.join(DATA_DIR,hparams.data_path,"train","removed_labels"),exist_ok = True)
+    os.makedirs(os.path.join(DATA_DIR,hparams.data_path,"test","removed_labels"),exist_ok = True)
     os.makedirs(os.path.join(DATA_DIR, hparams.data_path,
                 "train", "tensors"), exist_ok=True)
     os.makedirs(os.path.join(DATA_DIR, hparams.data_path,
@@ -416,7 +421,7 @@ def create_tensors_data(run_name, model_cls, data_cls, target_data_cls, target_d
 
             num_boxes_og.append(box_features.shape[0])
 
-            box_features, new_labels = target_data_cls.filter_data(
+            box_features, new_labels, removed_labels = target_data_cls.filter_data(
                 box_features, labels, boxes, classif, level=filter_level)
 
             if new_labels is not None:
@@ -424,8 +429,11 @@ def create_tensors_data(run_name, model_cls, data_cls, target_data_cls, target_d
                     DATA_DIR, hparams.data_path, "train", "tensors", f"{idx}.pt"))
                 new_labels.to_csv(os.path.join(
                     DATA_DIR, hparams.data_path, "train", "filtered_labels", f"{idx}.txt"))
-                idx_subset.append(idx)
+                if removed_labels is not None:
+                   removed_labels.to_csv(os.path.join(DATA_DIR,hparams.data_path,"train","removed_labels",f"{idx}.txt"))
 
+                idx_subset.append(idx)
+                 
                 num_boxes_filtered.append(box_features.shape[0])
 
     np.save(os.path.join(DATA_DIR, hparams.data_path, "folds", str(

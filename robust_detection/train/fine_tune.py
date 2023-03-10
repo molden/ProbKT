@@ -153,8 +153,8 @@ def hungarian_fine_tune(run_name, model_cls, data_cls, target_data_path, args, l
     return logger.experiment.id
 
 
-def fine_tune(run_name, model_cls, data_cls, target_data_cls, target_data_path, dpl_path, num_epochs_dpl=20, logger=None, detr=False, filter_level=0.99, score_thresh=0.05):
-
+def fine_tune(run_name, model_cls, data_cls, target_data_cls, target_data_path, args, num_epochs_dpl=20, logger=None, detr=False, filter_level=0.99, score_thresh=0.05):
+    target_data_cls.set_extra_vars(args)
     fine_tune_utils.create_tensors_data(run_name, model_cls, data_cls, target_data_cls, target_data_path=target_data_path,
                                         classif=None, filter_level=filter_level, detr=detr, score_thresh=score_thresh)
     print("Data Filtered.")

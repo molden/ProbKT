@@ -21,6 +21,7 @@ def process_labels(path, shift=0):
 
 
 class Range_Counter(Dataset, TorchDataset):
+    range_case = 0 #set it default to 0 but should be set with classmethod set_extra_vars
     def __getitem__(self, index: int) -> Tuple[list, list, list]:
         import ipdb
         ipdb.set_trace()
@@ -31,11 +32,9 @@ class Range_Counter(Dataset, TorchDataset):
         data_path,
         fold,
         fold_type,
-        range_case,
     ):
         super(Range_Counter, self).__init__()
         self.dataset_name = fold_type
-        self.range_case = range_case
         if fold_type == "val":
             fold_subtype = "train"
         else:
@@ -162,6 +161,96 @@ class Range_Counter(Dataset, TorchDataset):
         # import ipdb; ipdb.set_trace()
         return classes, count_classes, range_counts
 
+    @classmethod
+    def set_extra_vars(cls, args):
+        #the cls requires to set range_case in args
+        cls.range_case = args.range_case
+        return
+
+    @classmethod
+    def filter_data(self, box_features, labels_df, boxes, classif, level=0.99):
+        labels = []
+        shift=1
+        for index, row in labels_df.iterrows():
+            labels.append(int(row['label']))
+  
+        assert(level > 0.5)
+        og_labels = copy.deepcopy(labels)
+        wrap_model = WrapModel(classif)
+        # get the index and the values of the confident predictions
+        confident_index, confident_preds = torch.where(
+            wrap_model(torch.clone(box_features)) > level)
+        # initialized the retained index with the full tensor
+        retained_index = [i for i in range(box_features.shape[0])]
+        removed_labels = []
+        for i in range(len(confident_index)):
+            np_labels = np.array(labels)
+            np_removed_labels = np.array(removed_labels)
+            if len(labels) <= 2: # at least two prediction left per image
+               break
+            else:
+               count_labels = np.count_nonzero(np_labels == confident_preds[i].item())
+               count_removed_labels = np.count_nonzero(np_removed_labels == confident_preds[i].item())
+               if (count_labels + count_removed_labels) > self.range_case: #check if range_case applies for this label
+                  #import ipdb; ipdb.set_trace()
+                  if count_removed_labels < self.range_case: #in case range case applies for this label we can only remove if number of removed < range_case
+                     if confident_preds[i].item() in labels:#also in range_case we know which labels are present only not the exact amount
+                        retained_index.remove(confident_index[i])
+                        labels.remove(confident_preds[i].item())
+                        removed_labels.append(confident_preds[i].item())
+               else:#range_case does not apply for this label
+                  if confident_preds[i].item() in labels:#also in range_case we know which labels are present only not the exact amount
+                     retained_index.remove(confident_index[i])
+                     labels.remove(confident_preds[i].item())
+                     removed_labels.append(confident_preds[i].item())
+        if len(retained_index)>4 and level < 1.:
+           return None, None, None
+        df = pd.DataFrame(labels, columns = ["label"])
+        df["xmin"] = 0
+        df["ymin"] = 0
+        df["xmax"] = 0
+        df["ymax"] = 0
+        df_del = pd.DataFrame(removed_labels, columns = ["label"])
+
+        return box_features[retained_index], df, df_del
+
+    @classmethod
+    def compute_accuracy(self, targets, preds):
+        return torch.Tensor([torch.equal(targets[i]["labels"].sort()[0],preds[i]["labels"].sort()[0]) for i in range(len(targets)) ]).mean()
+
+    @classmethod
+    def read_labelrow(self, row):
+        return int(row['label'])
+
+    @classmethod
+    def get_dpl_script(self, data_path):
+        return os.path.join(DATA_DIR, "..", "models", "range_count_clevr.pl")
+
+    @classmethod
+    def evaluate_classifier(self, preds, labels):
+        return torch.equal(preds.sort()[0].long(), torch.Tensor(labels).sort()[0].long())
+
+    @classmethod
+    def select_data_to_label(self, box_features, labels, boxes, classif):
+        wrap_model = WrapModel(classif)
+        preds = torch.argmax(wrap_model(box_features), 1)
+        values_preds, count_preds = torch.unique(preds, sorted = True, return_counts = True)
+        values_labels, count_labels = torch.unique(torch.tensor(labels, dtype=torch.int64), sorted = True, return_counts = True)
+        #import ipdb; ipdb.set_trace()
+        if torch.equal(values_preds, values_labels):
+            count_preds_clamped = torch.clamp(count_preds, max=self.range_case)
+            count_labels_clamped = torch.clamp(count_labels, max=self.range_case)
+           # import ipdb; ipdb.set_trace()
+            if torch.equal(count_preds_clamped, count_labels_clamped):
+                df = pd.DataFrame(preds, columns = ["label"])
+
+                df["xmin"] = boxes[:,0].long()
+                df["ymin"] = boxes[:,1].long()
+                df["xmax"] = boxes[:,2].long()
+                df["ymax"] = boxes[:,3].long()
+                return df
+            else:
+                return None
 
 class MNIST_Prod(Dataset, TorchDataset):
     """Dataset for fine-tuning the MNIST Prod case
@@ -259,6 +348,10 @@ class MNIST_Prod(Dataset, TorchDataset):
         return target['label'].values[0]
 
     @classmethod
+    def set_extra_vars(cls, args):
+        return
+
+    @classmethod
     def filter_data(self, box_features, labels, boxes, classif, level=0.99):
         assert(level > 0.5)
         og_labels = copy.deepcopy(labels)
@@ -286,7 +379,7 @@ class MNIST_Prod(Dataset, TorchDataset):
         # By assumption, there are only 3 digits in the image
         retained_index = retained_index[:number_objects]
 
-        return box_features[retained_index], new_label
+        return box_features[retained_index], new_label, None
    
     @classmethod
     def compute_accuracy(self, targets, preds):
@@ -421,6 +514,10 @@ class MNIST_Sum(Dataset, TorchDataset):
         return sum_digit
 
     @classmethod
+    def set_extra_vars(cls, args):
+        return
+
+    @classmethod
     def compute_accuracy(self, targets, preds):
         return torch.Tensor([torch.sum(targets[i]["labels"].sort()[0]) == torch.sum(preds[i]["labels"].sort()[0]) for i in range(len(targets)) ]).mean()
 
@@ -468,7 +565,7 @@ class MNIST_Sum(Dataset, TorchDataset):
         df["ymax"] = 0
 
 
-        return box_features[retained_index], df
+        return box_features[retained_index], df, None
 
     @classmethod
     def get_dpl_script(self, data_path):
@@ -620,6 +717,10 @@ class Objects_Counter(Dataset, TorchDataset):
         # import ipdb; ipdb.set_trace()
         return classes, count_classes
 
+    @classmethod
+    def set_extra_vars(cls, args):
+        return
+
     @classmethod  
     def compute_accuracy(self, targets, preds):
         return torch.Tensor([torch.equal(targets[i]["labels"].sort()[0],preds[i]["labels"].sort()[0]) for i in range(len(targets)) ]).mean()
@@ -655,21 +756,22 @@ class Objects_Counter(Dataset, TorchDataset):
                   retained_index.remove(confident_index[i]) # remove this tensor from the data
                   labels.remove(confident_preds[i].item())
         if len(retained_index)>4 and level < 1.:
-           return None, None
+           return None, None, None
         if len(retained_index) < len(labels):
-           return None, None
+           return None, None, None
         df = pd.DataFrame(labels, columns = ["label"])
         df["xmin"] = 0
         df["ymin"] = 0
         df["xmax"] = 0
         df["ymax"] = 0
 
-
-        return box_features[retained_index], df
+        return box_features[retained_index], df, None
 
     @classmethod
     def get_dpl_script(self, data_path):
-        if "clevr" in data_path:
+        if "molecules" in data_path:
+           return os.path.join(DATA_DIR,"..","models","count_molecules.pl")
+        elif "clevr" in data_path:
            return os.path.join(DATA_DIR, "..", "models", "count_clevr.pl")
         else:
            return os.path.join(DATA_DIR, "..", "models", "count_objects.pl")
