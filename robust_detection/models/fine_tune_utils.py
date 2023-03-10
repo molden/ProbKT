@@ -50,7 +50,8 @@ def prepare_problog_model(run_name, model_cls, target_data_cls, batch_size=16, t
 
     api = wandb.Api()
 
-    run = api.run(f"{ENTITY}/object_detection/{run_name}")
+    #run = api.run(f"{ENTITY}/object_detection/{run_name}")
+    run = api.run(run_name)
 
     fname = [f.name for f in run.files() if "ckpt" in f.name][0]
     run.file(fname).download(replace=True, root=".")
@@ -349,7 +350,8 @@ def create_tensors_data(run_name, model_cls, data_cls, target_data_cls, target_d
     If classif is None, it uses the classifier from the pre-trained RCNN 
     """
     api = wandb.Api()
-    run = api.run(f"{ENTITY}/object_detection/{run_name}")
+    #run = api.run(f"{ENTITY}/object_detection/{run_name}")
+    run = api.run(run_name)
 
     fname = [f.name for f in run.files() if "ckpt" in f.name][0]
     run.file(fname).download(replace=True, root=".")
@@ -548,8 +550,8 @@ def relabel_data(run_name, model_cls, data_cls, target_data_cls, target_data_pat
     If classif is None, it uses the classifier from the pre-trained RCNN 
     """
     api = wandb.Api()
-    run = api.run(f"{ENTITY}/object_detection/{run_name}")
-
+    #run = api.run(f"{ENTITY}/object_detection/{run_name}")
+    run = api.run(f"{run_name}")
     fname = [f.name for f in run.files() if "ckpt" in f.name][0]
     run.file(fname).download(replace=True, root=".")
     model = model_cls.load_from_checkpoint(fname)

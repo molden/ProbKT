@@ -82,7 +82,7 @@ if __name__ == "__main__":
     #if args.target_data_type == "MNIST_prod":
     #    target_data_cls = MNIST_Prod
     target_data_cls = getattr(sys.modules[__name__], args.target_data_type)
-    run_name = best_run.id
+    run_name = f"/{ENTITY}/object_detection/{best_run.id}"
     print(run_name)
     #import ipdb; ipdb.set_trace()
     if args.detr:
