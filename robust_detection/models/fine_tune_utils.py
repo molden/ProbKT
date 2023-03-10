@@ -292,10 +292,10 @@ def filter_data(box_features, labels, boxes, classif, level=0.99, in_label_check
 
 def select_data_to_label(box_features, labels, boxes, classif, agg_case=False, range_case=-1):
     wrap_model = WrapModel(classif)
-
-    box_features = box_features[:len(labels)]
-    boxes = boxes[:len(labels)]
-    preds = torch.argmax(wrap_model(box_features), 1)
+    if range_case == -1: 
+       box_features = box_features[:len(labels)]
+       boxes = boxes[:len(labels)]
+    preds = torch.argmax(wrap_model(box_features),1)
     #import ipdb; ipdb.set_trace()
     if range_case > -1:
         values_preds, count_preds = torch.unique(
