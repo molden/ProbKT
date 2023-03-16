@@ -375,9 +375,10 @@ def create_tensors_data(run_name, model_cls, data_cls, target_data_cls, target_d
     trainer = pl.Trainer(logger=False, gpus=1)
 
     # disabling the score thresholding for the training set
-    initial_score_thresh = model.model.roi_heads.score_thresh
-    if score_thresh is not None:
-        model.model.roi_heads.score_thresh = score_thresh
+    if detr == False:
+        initial_score_thresh = model.model.roi_heads.score_thresh
+        if score_thresh is not None:
+           model.model.roi_heads.score_thresh = score_thresh
     train_preds = trainer.predict(model, dataset.train_dataloader())
 
     if detr == False:

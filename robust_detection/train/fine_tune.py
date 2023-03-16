@@ -251,7 +251,7 @@ def re_train(run_name, model_cls, data_cls, target_data_path, target_data_cls, l
     return run_id
 
 
-def re_train_detr(run_name, model_cls, data_cls, target_data_path, logger=None, agg_case=False):
+def re_train_detr(run_name, model_cls, data_cls, target_data_path, target_data_cls, logger=None):
 
     api = wandb.Api()
     run = api.run(f"{ENTITY}/object_detection/{run_name}")
@@ -285,10 +285,11 @@ def re_train_detr(run_name, model_cls, data_cls, target_data_path, logger=None, 
     del hparams.len_dataloader
     if hasattr(hparams, 'box_loss_mask'):
         del hparams.box_loss_mask
-    if hasattr(hparams, 'agg_case'):
-        hparams.agg_case = agg_case
-    else:
-        setattr(hparams, 'agg_case', agg_case)
+#    if hasattr(hparams, 'agg_case'):
+#        hparams.agg_case = agg_case
+#    else:
+#        setattr(hparams, 'agg_case', agg_case)
+    setattr(hparams, 'target_data_cls', target_data_cls) 
     if hasattr(hparams, 'paired_og'):
         hparams.paired_og = False
     else:

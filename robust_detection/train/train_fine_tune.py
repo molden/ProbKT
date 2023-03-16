@@ -102,8 +102,9 @@ if __name__ == "__main__":
     fine_tune.fine_tune(run_name, model_cls, data_cls, target_data_cls, target_data_path, args, num_epochs_dpl=20,
                         logger=logger, detr=args.detr, filter_level=args.filter_level)
     if args.detr:
+        data_cls = Objects_RCNN
         re_run_id = fine_tune.re_train_detr(
-            run_name, model_cls, data_cls, target_data_path, logger=logger, agg_case=args.agg_case)
+            run_name, model_cls, data_cls, target_data_path, target_data_cls, logger=logger)
     else:
         data_cls = Objects_RCNN
         re_run_id = fine_tune.re_train(run_name, model_cls, data_cls, target_data_path, target_data_cls,

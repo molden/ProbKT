@@ -287,7 +287,7 @@ class Objects_RCNN_Pred(Objects_RCNN):
 
     Same as Objects_RCNN but without processing of the labels, we just return the tensor version of the dataframe.
     """
-    def __init__(self, batch_size, data_path, fold, num_workers=4, filtered=False, box_loss_mask=False, skip_data_path=None, rgb=False, re_train=False, og_data_dir=None, og_data_path=None, in_memory=False, **kwargs):
+    def __init__(self, batch_size, data_path, fold, num_workers=4, filtered=False, box_loss_mask=False, skip_data_path=None, rgb=False, re_train=False, og_data_dir=None, og_data_path=None, in_memory=False, target_data_cls=None, **kwargs):
         super().__init__(batch_size, data_path, fold, num_workers, filtered, box_loss_mask, skip_data_path, rgb, re_train, og_data_dir, og_data_path, in_memory, **kwargs)
         self.base_class = Objects_Detection_Predictor_Dataset
     
