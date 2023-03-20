@@ -345,7 +345,7 @@ def select_data_to_label(box_features, labels, boxes, classif, agg_case=False, r
         return None
 
 
-def create_tensors_data(run_name, model_cls, data_cls, target_data_cls, target_data_path=None, classif=None, filter_level=0.99, detr=False, class_filtering=True, score_thresh=0.05):
+def create_tensors_data(run_name, model_cls, data_cls, target_data_cls=None, target_data_path=None, classif=None, filter_level=0.99, detr=False, class_filtering=True, score_thresh=0.05):
     """
     If classif is None, it uses the classifier from the pre-trained RCNN 
     """
@@ -423,9 +423,12 @@ def create_tensors_data(run_name, model_cls, data_cls, target_data_cls, target_d
             
 
             num_boxes_og.append(box_features.shape[0])
-
-            box_features, new_labels, removed_labels = target_data_cls.filter_data(
-                box_features, labels, boxes, classif, level=filter_level)
+            if target_data_cls is not None:
+               box_features, new_labels, removed_labels = target_data_cls.filter_data(
+                   box_features, labels, boxes, classif, level=filter_level)
+            else:
+               new_labels=labels
+               removed_labels=None
 
             if new_labels is not None:
                 torch.save(box_features, os.path.join(

@@ -23,11 +23,12 @@ def hungarian_predictor_fine_tune(run_name, model_cls, data_cls, target_data_pat
 
     print("Creating Tensor data (and Filtering data) .....")
     fine_tune_utils.create_tensors_data(
-        run_name, model_cls, data_cls, target_data_path=target_data_path, classif=None, filter_level=1.)
+        run_name, model_cls, data_cls, target_data_cls=None, target_data_path=target_data_path, classif=None, filter_level=1.)
     print("Tensor Data created.")
     data_cls = Objects_RCNN_Predictor
     api = wandb.Api()
-    run = api.run(f"{ENTITY}/object_detection/{run_name}")
+    #run = api.run(f"{ENTITY}/object_detection/{run_name}")
+    run = api.run(f"{run_name}")
 
     fname = [f.name for f in run.files() if "ckpt" in f.name][0]
     run.file(fname).download(replace=True, root=".")

@@ -42,7 +42,7 @@ if __name__=="__main__":
     model_cls = RCNN
     data_cls = Objects_RCNN
     
-    run_name = best_run.id
+    run_name = f"{ENTITY}/object_detection/{best_run.id}"
 
     logger = WandbLogger(
         name=f"RCNN-predictor-finetune-hungarian",
