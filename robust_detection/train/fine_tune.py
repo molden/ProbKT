@@ -19,11 +19,11 @@ from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks import LearningRateMonitor
 
 
-def hungarian_predictor_fine_tune(run_name, model_cls, data_cls, target_data_path, args, logger):
+def hungarian_predictor_fine_tune(run_name, model_cls, data_cls, target_data_cls, target_data_path, args, logger):
 
     print("Creating Tensor data (and Filtering data) .....")
     fine_tune_utils.create_tensors_data(
-        run_name, model_cls, data_cls, target_data_cls=None, target_data_path=target_data_path, classif=None, filter_level=1.)
+        run_name, model_cls, data_cls, target_data_cls=target_data_cls, target_data_path=target_data_path, classif=None, filter_level=1.)
     print("Tensor Data created.")
     data_cls = Objects_RCNN_Predictor
     api = wandb.Api()
@@ -69,7 +69,7 @@ def hungarian_predictor_fine_tune(run_name, model_cls, data_cls, target_data_pat
         checkpoint_path)
     val_results = trainer2.test(
         model,
-        test_dataloaders=dataset.val_dataloader()
+        dataloaders=dataset.val_dataloader()
     )[0]
 
     val_results = {
@@ -79,7 +79,7 @@ def hungarian_predictor_fine_tune(run_name, model_cls, data_cls, target_data_pat
 
     test_results = trainer2.test(
         model,
-        test_dataloaders=dataset.test_dataloader()
+        dataloaders=dataset.test_dataloader()
     )[0]
 
     for name, value in {**test_results}.items():

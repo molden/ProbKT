@@ -755,6 +755,9 @@ class Objects_Counter(Dataset, TorchDataset):
                if confident_preds[i].item() in labels:
                   retained_index.remove(confident_index[i]) # remove this tensor from the data
                   labels.remove(confident_preds[i].item())
+        if len(retained_index)>len(labels):
+           retained_index = retained_index[:len(labels)]
+
         if len(retained_index)>4 and level < 1.:
            return None, None, None
         if len(retained_index) < len(labels):

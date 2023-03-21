@@ -213,9 +213,9 @@ class RCNN_Predictor(pl.LightningModule):
         pred_boxes=[]
         index = 0
         #THIS (VAL) ONLY WORKS IN CASE OF BATCHSIZE 1
-        if val:
-            pred_logits.append(output)
-            return pred_logits
+        #if val:
+        #    pred_logits.append(output)
+        #    return pred_logits
         for p in target_pointers:
             pred_logits.append(output[shift:p+shift])
             pred_boxes.append(torch.as_tensor(target_boxes[index], device=output[shift:p+shift].device))

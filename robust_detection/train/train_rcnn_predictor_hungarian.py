@@ -1,11 +1,13 @@
 from robust_detection.wandb_config import ENTITY
 from robust_detection.train import fine_tune
 import wandb
+import sys
 from robust_detection.models.rcnn import RCNN
 from robust_detection.data_utils.rcnn_data_utils import Objects_RCNN
 from robust_detection.data_utils.rcnn_data_utils import Objects_RCNN_Predictor
 from argparse import ArgumentParser
 from pytorch_lightning.loggers import WandbLogger
+from robust_detection.data_utils.problog_data_utils import Objects_Counter
 
 if __name__=="__main__":
 
@@ -22,6 +24,8 @@ if __name__=="__main__":
     parser.add_argument('--gpus', default=1, help='number of gpus to use', type = int)
     parser.add_argument('--early_stopping', default=7, type=int, 
                         help='patience of the early stopping')
+    parser.add_argument('--target_data_type', type=str, choices=['Objects_Counter'],
+                                    help='Name of Data Class to use for fine tuning')
     args = parser.parse_args()
 
     sweep_id = args.sweep_id
@@ -49,8 +53,8 @@ if __name__=="__main__":
         project="object_detection",
         log_model=False
     )
-
-    fine_tune.hungarian_predictor_fine_tune(run_name, model_cls, data_cls, target_data_path, args = args, logger = logger)
+    target_data_cls = getattr(sys.modules[__name__], args.target_data_type)
+    fine_tune.hungarian_predictor_fine_tune(run_name, model_cls, data_cls, target_data_cls, target_data_path, args = args, logger = logger)
     #re_run_id = fine_tune.re_train(run_name, model_cls, data_cls, target_data_path, logger = logger)
 
 
