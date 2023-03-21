@@ -528,7 +528,7 @@ def fine_tune_detr(run_name, model_cls, data_cls, target_data_path=None, logger=
     model = model_cls.load_from_checkpoint(checkpoint_path)
     val_results = trainer2.test(
         model,
-        test_dataloaders=dataset.val_dataloader()
+        dataloaders=dataset.val_dataloader()
     )[0]
 
     val_results = {
@@ -538,7 +538,7 @@ def fine_tune_detr(run_name, model_cls, data_cls, target_data_path=None, logger=
 
     test_results = trainer2.test(
         model,
-        test_dataloaders=dataset.test_dataloader()
+        dataloaders=dataset.test_dataloader()
     )[0]
 
     for name, value in {**test_results}.items():
