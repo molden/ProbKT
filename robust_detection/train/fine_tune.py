@@ -245,15 +245,10 @@ def re_train(checkpoint_file, model_cls, data_cls, target_data_path, target_data
     return run_id
 
 
-def re_train_detr(run_name, model_cls, data_cls, target_data_path, target_data_cls, logger=None):
+def re_train_detr(checkpoint_file, model_cls, data_cls, target_data_path, target_data_cls, logger=None):
 
-    api = wandb.Api()
-#    run = api.run(f"{ENTITY}/object_detection/{run_name}")
-    run = api.run(f"{run_name}")
-    fname = [f.name for f in run.files() if "ckpt" in f.name][0]
-    run.file(fname).download(replace=True, root=".")
-    model = model_cls.load_from_checkpoint(fname)
-    os.remove(fname)
+    model = model_cls.load_from_checkpoint(checkpoint_file)
+    #os.remove(fname)
 
     hparams = model.hparams
     hparams.re_train = True
