@@ -1,6 +1,4 @@
-from robust_detection.wandb_config import ENTITY
 from robust_detection.models import fine_tune_utils
-import wandb
 import os
 from robust_detection.models.rcnn import RCNN
 from robust_detection.models.rcnn import RCNN_Predictor
@@ -154,16 +152,16 @@ def hungarian_fine_tune(run_name, model_cls, data_cls, target_data_path, args, l
     return logger.experiment.id
 
 
-def fine_tune(run_name, model_cls, data_cls, target_data_cls, target_data_path, args, num_epochs_dpl=20, logger=None, detr=False, filter_level=0.99, score_thresh=0.05):
+def fine_tune(checkpoint_file, model_cls, data_cls, target_data_cls, target_data_path, args, num_epochs_dpl=20, logger=None, detr=False, filter_level=0.99, score_thresh=0.05):
     target_data_cls.set_extra_vars(args)
-    fine_tune_utils.create_tensors_data(run_name, model_cls, data_cls, target_data_cls, target_data_path=target_data_path,
+    fine_tune_utils.create_tensors_data(checkpoint_file, model_cls, data_cls, target_data_cls, target_data_path=target_data_path,
                                         classif=None, filter_level=filter_level, detr=detr, score_thresh=score_thresh)
     print("Data Filtered.")
 
     print("Loading DPL model ....")
     classifier = None
     dpl_loader, model_dpl, fold = fine_tune_utils.prepare_problog_model(
-        run_name, model_cls, target_data_cls, batch_size=16, target_data_path=target_data_path, classif=classifier, detr=detr)
+        checkpoint_file, model_cls, target_data_cls, batch_size=16, target_data_path=target_data_path, classif=classifier, detr=detr)
     print("DPL model loaded.")
 
     classif = copy.deepcopy(
@@ -187,20 +185,20 @@ def fine_tune(run_name, model_cls, data_cls, target_data_cls, target_data_path, 
         print(
             f"Training accuracy : {train_acc:.3f} - Validation accuracy : {val_acc:.3f}")
         if logger is not None:
-            logger.experiment.log(
+            logger.log_metrics(
                 {"dpl_train_accuracy": train_acc, "dpl_val_accuracy": val_acc})
         if val_acc > val_acc_best:
             # checkpoint model
             print("best model, checkpointing ...")
             best_model_path = os.path.join(
-                logger.experiment.dir, "classifier=epoch="+str(epoch)+"=model.pth")
+                logger.log_dir, "classifier=epoch="+str(epoch)+"=model.pth")
             torch.save(classif.state_dict(), os.path.join(
-                logger.experiment.dir, "classifier=epoch="+str(epoch)+"=model.pth"))
+                logger.log_dir, "classifier=epoch="+str(epoch)+"=model.pth"))
             val_acc_best = val_acc
     print(f"restoring from {best_model_path} with val_acc {val_acc_best}")
     classif.load_state_dict(torch.load(best_model_path))
     print("Creating new labels .....")
-    fine_tune_utils.relabel_data(run_name, model_cls, data_cls, target_data_cls, target_data_path=target_data_path,
+    fine_tune_utils.relabel_data(checkpoint_file, model_cls, data_cls, target_data_cls, target_data_path=target_data_path,
                                  classif=classif)
     print("Done.")
     return
@@ -209,15 +207,10 @@ def fine_tune(run_name, model_cls, data_cls, target_data_cls, target_data_path, 
 #    fine_tune_utils.tune_detr(run_name, model_cls, data_cls, target_data_path
 
 
-def re_train(run_name, model_cls, data_cls, target_data_path, target_data_cls, logger=None):
+def re_train(checkpoint_file, model_cls, data_cls, target_data_path, target_data_cls, logger=None):
 
-    api = wandb.Api()
-    run = api.run(f"{ENTITY}/object_detection/{run_name}")
-
-    fname = [f.name for f in run.files() if "ckpt" in f.name][0]
-    run.file(fname).download(replace=True, root=".")
-    model = model_cls.load_from_checkpoint(fname)
-    os.remove(fname)
+    model = model_cls.load_from_checkpoint(checkpoint_file)
+    #os.remove(fname)
 
     hparams = model.hparams
     hparams.re_train = True

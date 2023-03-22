@@ -1,5 +1,3 @@
-from robust_detection.wandb_config import ENTITY
-import wandb
 import os
 from robust_detection.models.rcnn import RCNN
 from robust_detection.models.matcher import build_matcher
@@ -42,21 +40,15 @@ from deepproblog.dataset import DataLoader
 from robust_detection.utils import DATA_DIR
 
 
-def prepare_problog_model(run_name, model_cls, target_data_cls, batch_size=16, target_data_path=None, classif=None, detr=False):
+def prepare_problog_model(checkpoint_file, model_cls, target_data_cls, batch_size=16, target_data_path=None, classif=None, detr=False):
     """
     - Feed the problog model directly
     - Feed the datasets
     """
 
-    api = wandb.Api()
 
-    #run = api.run(f"{ENTITY}/object_detection/{run_name}")
-    run = api.run(run_name)
-
-    fname = [f.name for f in run.files() if "ckpt" in f.name][0]
-    run.file(fname).download(replace=True, root=".")
-    model = model_cls.load_from_checkpoint(fname)
-    os.remove(fname)
+    model = model_cls.load_from_checkpoint(checkpoint_file)
+    #os.remove(fname)
 
     hparams = model.hparams
 
@@ -345,18 +337,13 @@ def select_data_to_label(box_features, labels, boxes, classif, agg_case=False, r
         return None
 
 
-def create_tensors_data(run_name, model_cls, data_cls, target_data_cls=None, target_data_path=None, classif=None, filter_level=0.99, detr=False, class_filtering=True, score_thresh=0.05):
+def create_tensors_data(checkpoint_file, model_cls, data_cls, target_data_cls=None, target_data_path=None, classif=None, filter_level=0.99, detr=False, class_filtering=True, score_thresh=0.05):
     """
     If classif is None, it uses the classifier from the pre-trained RCNN 
     """
-    api = wandb.Api()
-    #run = api.run(f"{ENTITY}/object_detection/{run_name}")
-    run = api.run(run_name)
 
-    fname = [f.name for f in run.files() if "ckpt" in f.name][0]
-    run.file(fname).download(replace=True, root=".")
-    model = model_cls.load_from_checkpoint(fname)
-    os.remove(fname)
+    model = model_cls.load_from_checkpoint(checkpoint_file)
+    #os.remove(fname)
 
     hparams = model.hparams
     hparams.re_train = False
@@ -549,17 +536,12 @@ def fine_tune_detr(run_name, model_cls, data_cls, target_data_path=None, logger=
     return logger.experiment.id
 
 
-def relabel_data(run_name, model_cls, data_cls, target_data_cls, target_data_path=None, classif=None):
+def relabel_data(checkpoint_file, model_cls, data_cls, target_data_cls, target_data_path=None, classif=None):
     """
     If classif is None, it uses the classifier from the pre-trained RCNN 
     """
-    api = wandb.Api()
-    #run = api.run(f"{ENTITY}/object_detection/{run_name}")
-    run = api.run(f"{run_name}")
-    fname = [f.name for f in run.files() if "ckpt" in f.name][0]
-    run.file(fname).download(replace=True, root=".")
-    model = model_cls.load_from_checkpoint(fname)
-    os.remove(fname)
+    model = model_cls.load_from_checkpoint(checkpoint_file)
+    #os.remove(fname)
 
     hparams = model.hparams
     hparams.re_train = False
