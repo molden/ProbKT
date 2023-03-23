@@ -17,20 +17,15 @@ from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks import LearningRateMonitor
 
 
-def hungarian_predictor_fine_tune(run_name, model_cls, data_cls, target_data_cls, target_data_path, args, logger):
+def hungarian_predictor_fine_tune(checkpoint_file, model_cls, data_cls, target_data_cls, target_data_path, args, logger):
 
     print("Creating Tensor data (and Filtering data) .....")
     fine_tune_utils.create_tensors_data(
-        run_name, model_cls, data_cls, target_data_cls=target_data_cls, target_data_path=target_data_path, classif=None, filter_level=1.)
+        checkpoint_file, model_cls, data_cls, target_data_cls=target_data_cls, target_data_path=target_data_path, classif=None, filter_level=1.)
     print("Tensor Data created.")
     data_cls = Objects_RCNN_Predictor
-    api = wandb.Api()
-    #run = api.run(f"{ENTITY}/object_detection/{run_name}")
-    run = api.run(f"{run_name}")
 
-    fname = [f.name for f in run.files() if "ckpt" in f.name][0]
-    run.file(fname).download(replace=True, root=".")
-    model = model_cls.load_from_checkpoint(fname)
+    model = model_cls.load_from_checkpoint(checkpoint_file)
     classif = model.box_predictor.cls_score
     #hparams = Namespace(**model.hparams)
     hparams = model.hparams
@@ -47,7 +42,7 @@ def hungarian_predictor_fine_tune(run_name, model_cls, data_cls, target_data_cls
         dataset.val_dataloader()), rcnn_head_model=classif, lr=args.lr)
 
     checkpoint_cb = ModelCheckpoint(
-        dirpath=logger.experiment.dir,
+        dirpath=logger.log_dir,
         monitor='val_acc',
         mode='max',
         verbose=True
@@ -80,12 +75,22 @@ def hungarian_predictor_fine_tune(run_name, model_cls, data_cls, target_data_cls
         dataloaders=dataset.test_dataloader()
     )[0]
 
+    test_results_dict = {}
+    val_results_dict = {}
     for name, value in {**test_results}.items():
-        logger.experiment.summary['restored_' + name] = value
+        test_results_dict[name]=value
+        #logger.experiment.summary['restored_' + name] = value
     for name, value in {**val_results}.items():
-        logger.experiment.summary['restored_' + name] = value
+        val_results_dict[name]=value
+        #logger.experiment.summary['restored_' + name] = value
+    import pickle
+    with open(os.path.join(logger.log_dir,"restored_test_result.pkl"), "wb") as output_file:
+         pickle.dump(test_results_dict, output_file)
+    with open(os.path.join(logger.log_dir,"restored_val_result.pkl"), "wb") as output_file:
+         pickle.dump(val_results_dict, output_file)
+    print(f"experiment logged in {logger.log_dir}")
 
-    return logger.experiment.id
+    return logger.log_dir
 
 
 def hungarian_fine_tune(run_name, model_cls, data_cls, target_data_path, args, logger):

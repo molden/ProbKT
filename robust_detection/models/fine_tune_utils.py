@@ -458,18 +458,14 @@ def create_tensors_data(checkpoint_file, model_cls, data_cls, target_data_cls=No
                 DATA_DIR, hparams.data_path, "test", "tensors", f"{idx}.pt"))
 
 
-def fine_tune_detr(run_name, model_cls, data_cls, target_data_path=None, logger=None):
-    api = wandb.Api()
-    run = api.run(f"{ENTITY}/object_detection/{run_name}")
+def fine_tune_detr(checkpoint_file, model_cls, data_cls, target_data_path=None, logger=None):
 
-    fname = [f.name for f in run.files() if "ckpt" in f.name][0]
-    run.file(fname).download(replace=True, root=".")
-    model = model_cls.load_from_checkpoint(fname)
+    model = model_cls.load_from_checkpoint(checkpoint_file)
     for param in model.parameters():
         param.requires_grad = False
     for param in model.class_embed.parameters():
         param.requires_grad = True
-    os.remove(fname)
+    #os.remove(fname)
     hparams = model.hparams
     model.matcher = build_matcher(hparams["set_cost_class"], 0, 0)
     weight_dict = {'loss_ce': 1, 'loss_bbox': hparams["bbox_loss_coef"]}
@@ -488,13 +484,12 @@ def fine_tune_detr(run_name, model_cls, data_cls, target_data_path=None, logger=
     dataset.prepare_data()
 
     if logger is None:
-        logger = WandbLogger(
+        logger = CSVLogger(
+            f"{args.output_dir}/logger/",
             name=f"DETR-finetune",
-            project="object_detection",
-            log_model=False
         )
     checkpoint_cb = ModelCheckpoint(
-        dirpath=logger.experiment.dir,
+        dirpath=logger.log_dir,
         monitor='val_acc',
         mode='max',
         verbose=True
@@ -528,13 +523,21 @@ def fine_tune_detr(run_name, model_cls, data_cls, target_data_path=None, logger=
         dataloaders=dataset.test_dataloader()
     )[0]
 
+    test_results_dict = {}
+    val_results_dict = {}
     for name, value in {**test_results}.items():
-        logger.experiment.summary['restored_' + name] = value
+        test_results_dict[name]=value
+        #logger.experiment.summary['restored_' + name] = value
     for name, value in {**val_results}.items():
-        logger.experiment.summary['restored_' + name] = value
-
-    return logger.experiment.id
-
+        val_results_dict[name]=value
+        #logger.experiment.summary['restored_' + name] = value
+    import pickle
+    with open(os.path.join(logger.log_dir,"restored_test_result.pkl"), "wb") as output_file:
+         pickle.dump(test_results_dict, output_file)
+    with open(os.path.join(logger.log_dir,"restored_val_result.pkl"), "wb") as output_file:
+         pickle.dump(val_results_dict, output_file)
+    print(f"experiment logged in {logger.log_dir}")
+    return logger.log_dir
 
 def relabel_data(checkpoint_file, model_cls, data_cls, target_data_cls, target_data_path=None, classif=None):
     """
