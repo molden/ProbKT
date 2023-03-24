@@ -2,11 +2,22 @@
 
 ProbKT, a framework based on probabilistic reasoning to train object detection models with weak supervision, by transferring knowledge from a source domain where rich image annotations are available.
 
+If you find this code or idea useful, please consider citing our work:
+
+```
+
+@article{oldenhof2023weakly,
+  title={Weakly Supervised Knowledge Transfer with Probabilistic Logical Reasoning for Object Detection},
+  author={Oldenhof, Martijn and Arany, Adam and Moreau, Yves and De Brouwer, Edward},
+  journal={arXiv preprint arXiv:2303.05148},
+  year={2023}
+}
+
+```
+
 ## Prerequisites and installation
 
-To take advantage of full features of code we recommend to create an account on [WANDB](https://wandb.ai/) and login.
-
-ProbKT finetuning also depends on [DeepProbLog](https://github.com/ML-KULeuven/deepproblog).
+ProbKT finetuning depends on [DeepProbLog](https://github.com/ML-KULeuven/deepproblog).
 
 For easy of use we recommend to also first install and set up a [poetry environment](https://python-poetry.org)
 
@@ -54,34 +65,20 @@ poetry run python robust_detection/train/train_detr.py --data_path mnist/mnist3_
 
 ## ProbKT Finetune RCNN Pretrained model
 
-For finetuning a sweep is assumed on your wandb account for the 5 fold pretrained RCNN model. Example sweep configuration:
-```
-method: grid
-parameters:
-  batch_size:
-    values:
-      - 1
-  data_path:
-    values:
-      - mnist/mnist3_skip
-  epochs:
-    values:
-      - 30
-  fold:
-    values:
-      - 0
-      - 1
-      - 2
-      - 3
-      - 4
-  pre_trained:
-    values:
-      - true
-program: train_rcnn.py
-```
-
-Once sweep has ran succesful finetuning can start using:
+For finetuning a pretrained RCNN model is assumed logged in the folder ``logger/RCNN/version_0``. If the folder is different you can specify it using the command line option ``--experiment_path``. The type of supervision used for finetuning can be set using the ``--target_data_type`` option. For example:
 
 ```
-poetry run python robust_detection/train/train_fine_tune.py --og_data_path mnist/mnist3_skip --target_data_path mnist/mnist3_all --agg_case True --fold 0 --sweep_id <sweepid>
+poetry run python robust_detection/train/train_fine_tune.py --og_data_path mnist/mnist3_skip --target_data_path mnist/mnist3_all --target_data_type MNIST_Sum --fold 0 --experiment_path logger/RCNN/version_0
 ```
+
+## Retrain ProbKT Finetuned RCNN  model
+
+Once finetuned the RCNN model can be retrained for several iterations to improve performance. Again the option ``--experiment_path`` points to the previous finetuned model. For example:
+
+```
+poetry run python robust_detection/train/retrain_rcnn.py --data_path mnist/mnist3_all --target_data_type MNIST_Sum --fold 0 --experiment_path logger/RCNN-finetune/version_0
+```
+
+## ProbKT extras and extension
+
+ProbKT can also be used to finetune a DETR model or use other types of supervision besides ``MNIST_Sum`` like ``Objects_Counter`` of ``Range_Counter``.  New types of supervision can be easily integrated and documentation will be provided. 
