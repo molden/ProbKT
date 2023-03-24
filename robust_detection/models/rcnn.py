@@ -3,8 +3,8 @@ import os
 import sys
 import time
 import torch
-from robust_detection.wandb_config import ENTITY
-import wandb
+#from robust_detection.wandb_config import ENTITY
+#import wandb
 
 from robust_detection.baselines.cnn_model import CNN
 import torchvision.models.detection.mask_rcnn
@@ -213,9 +213,9 @@ class RCNN_Predictor(pl.LightningModule):
         pred_boxes=[]
         index = 0
         #THIS (VAL) ONLY WORKS IN CASE OF BATCHSIZE 1
-        if val:
-            pred_logits.append(output)
-            return pred_logits
+        #if val:
+        #    pred_logits.append(output)
+        #    return pred_logits
         for p in target_pointers:
             pred_logits.append(output[shift:p+shift])
             pred_boxes.append(torch.as_tensor(target_boxes[index], device=output[shift:p+shift].device))
@@ -273,7 +273,7 @@ class RCNN_Predictor(pl.LightningModule):
         return
 
 class RCNN(pl.LightningModule):
-    def __init__(self, len_dataloader, hidden_layer, num_classes, score_thresh,model_type = "mask_rcnn", pre_trained = True, backbone_run_name = None, agg_case=False, **kwargs):
+    def __init__(self, len_dataloader, hidden_layer, num_classes, score_thresh,model_type = "mask_rcnn", pre_trained = True, backbone_run_name = None, target_data_cls=None, **kwargs):
         super().__init__()
         self.save_hyperparameters()
         self.num_classes = num_classes
@@ -285,7 +285,7 @@ class RCNN(pl.LightningModule):
 
         self.pre_trained = pre_trained
         self.hungarian_fine_tuning = False
-        self.agg_case = agg_case
+        self.target_data_cls = target_data_cls
 
     def configure_optimizers(self):
         opt = torch.optim.SGD(self.parameters(), lr= self.hparams["lr"],
@@ -427,9 +427,11 @@ class RCNN(pl.LightningModule):
 
     def validation_step(self,batch,batch_idx):
         images, targets, _ = batch
-        loss_dict = self(images, targets, val = True)
-        if self.agg_case:
-            accuracy = self.compute_sum_accuracy(targets,loss_dict)
+        self.model.eval()
+        loss_dict = self.model(images)
+        #loss_dict = self(images, targets, val = True)
+        if self.target_data_cls is not None:
+            accuracy = self.target_data_cls.compute_accuracy(targets,loss_dict)
         else:
             accuracy = self.compute_accuracy(targets,loss_dict)
         self.log("val_acc", accuracy,on_epoch = True)
@@ -437,9 +439,12 @@ class RCNN(pl.LightningModule):
     
     def test_step(self,batch,batch_idx):
         images, targets, _ = batch
-        loss_dict = self(images, targets, val = True)
-        if self.agg_case:
-            accuracy = self.compute_sum_accuracy(targets,loss_dict)
+        self.model.eval()
+        #loss_dict = self(images, targets, val = True)
+        loss_dict = self.model(images)
+        if self.target_data_cls is not None:
+            accuracy = self.target_data_cls.compute_accuracy(targets,loss_dict)
+            #accuracy = self.compute_accuracy(targets,loss_dict)
         else:
             accuracy = self.compute_accuracy(targets,loss_dict)
         self.log("test_acc", accuracy,on_epoch = True)
@@ -456,8 +461,10 @@ class RCNN(pl.LightningModule):
         #metric.update(preds, target)
         #mAP = metric.compute()
 
-        return {"box_features":[l["box_features"] for l in loss_dict],"boxes_true":[t["boxes"] for t in targets], "scores":[l["scores"] for l in loss_dict],"targets":[t["labels"] for t in targets],  "preds":[l["labels"] for l in loss_dict],"idx":idx, "boxes": [l["boxes"] for l in loss_dict]}
-
+        if "boxes" in targets[0].keys():
+            return {"box_features":[l["box_features"] for l in loss_dict],"boxes_true":[t["boxes"] for t in targets], "scores":[l["scores"] for l in loss_dict],"targets":[t["labels"] for t in targets],  "preds":[l["labels"] for l in loss_dict],"idx":idx, "boxes": [l["boxes"] for l in loss_dict]}
+        else:
+            return {"box_features":[l["box_features"] for l in loss_dict],"boxes_true":[None for t in targets], "scores":[l["scores"] for l in loss_dict],"targets":[t["labels"] for t in targets],  "preds":[l["labels"] for l in loss_dict],"idx":idx, "boxes": [l["boxes"] for l in loss_dict]}
 
     @classmethod
     def add_dataset_specific_args(cls, parent):
@@ -468,7 +475,7 @@ class RCNN(pl.LightningModule):
         parser.add_argument('--model_type', type=str, default="rcnn", help = "type of model to use")
         parser.add_argument('--backbone_run_name', type=str, default=None, help = "run_name of CNN for backbone to be used")
         parser.add_argument('--pre_trained', type=str2bool, default=True)
-        parser.add_argument('--agg_case', type=str2bool, default=False)
+        parser.add_argument('--target_data_cls', type=str, default=None)
         return parser
 
 

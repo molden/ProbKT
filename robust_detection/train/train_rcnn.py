@@ -2,13 +2,14 @@ import os
 import torch
 
 
-from robust_detection import wandb_config
+#from robust_detection import wandb_config
 from robust_detection import utils
 from robust_detection.models.rcnn import RCNN
 from robust_detection.data_utils.rcnn_data_utils import Objects_RCNN, COCO_RCNN
 
 import pytorch_lightning as pl
 from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning.loggers import CSVLogger
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks import LearningRateMonitor
@@ -21,18 +22,16 @@ def main(model_cls, data_cls, args, logger = None):
     # use our dataset and defined transformations
     dataset = data_cls(**vars(args))
     dataset.prepare_data()
-    
     model = model_cls(len_dataloader = len(dataset.val_dataloader()),**vars(args))
    
     if logger is None:
-            logger = WandbLogger(
+            logger = CSVLogger(
+            f"{args.output_dir}/logger/",
             name=f"RCNN",
-            project="object_detection",
-            log_model=False
         )
     
     checkpoint_cb = ModelCheckpoint(
-        dirpath=logger.experiment.dir,
+        dirpath=logger.log_dir,
         monitor='val_acc',
         mode='max',
         verbose=True
@@ -64,13 +63,21 @@ def main(model_cls, data_cls, args, logger = None):
        # test_dataloaders=dataset.test_dataloader()
         dataloaders=dataset.test_dataloader()
     )[0]
-
+    test_results_dict = {}
+    val_results_dict = {}
     for name, value in {**test_results}.items():
-        logger.experiment.summary['restored_' + name] = value
+        test_results_dict[name]=value
+        #logger.experiment.summary['restored_' + name] = value
     for name, value in {**val_results}.items():
-        logger.experiment.summary['restored_' + name] = value
-
-    return logger.experiment.id
+        val_results_dict[name]=value
+        #logger.experiment.summary['restored_' + name] = value
+    import pickle
+    with open(os.path.join(logger.log_dir,"restored_test_result.pkl"), "wb") as output_file:
+         pickle.dump(test_results_dict, output_file)
+    with open(os.path.join(logger.log_dir,"restored_val_result.pkl"), "wb") as output_file:
+         pickle.dump(val_results_dict, output_file)
+    print(f"experiment logged in {logger.log_dir}")
+    return logger.log_dir
 
 if __name__ == "__main__":
 

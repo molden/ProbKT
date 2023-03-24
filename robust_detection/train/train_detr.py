@@ -6,16 +6,6 @@ import random
 import time
 from pathlib import Path
 
-#import numpy as np
-#import torch
-#from torch.utils.data import DataLoader, DistributedSampler
-
-#import datasets
-#import util.misc as utils
-#from datasets import build_dataset, get_coco_api_from_dataset
-#from engine import evaluate, train_one_epoch
-#from models import build_model
-
 import os
 import torch
 
@@ -24,7 +14,7 @@ from robust_detection.models.detr import DETR
 
 from robust_detection.data_utils.rcnn_data_utils import Objects_RCNN
 import pytorch_lightning as pl
-from pytorch_lightning.loggers import WandbLogger
+from pytorch_lightning.loggers import WandbLogger, CSVLogger
 from pytorch_lightning.callbacks.model_checkpoint import ModelCheckpoint
 from pytorch_lightning.callbacks.early_stopping import EarlyStopping
 from pytorch_lightning.callbacks import LearningRateMonitor
@@ -100,8 +90,8 @@ def get_args_parser():
     parser.add_argument('--coco_panoptic_path', type=str)
     parser.add_argument('--remove_difficult', action='store_true')
 
-    parser.add_argument('--output_dir', default='',
-                        help='path where to save, empty for no saving')
+    parser.add_argument('--output_dir', default='.',
+                        help='path where to save')
     parser.add_argument('--device', default='cuda',
                         help='device to use for training / testing')
     parser.add_argument('--seed', default=42, type=int)
@@ -151,14 +141,12 @@ def main(model_cls, data_cls, args, logger = None):
 #    model = model_cls(**vars(args))
 
     if logger is None:
-            logger = WandbLogger(
+            logger = CSVLogger(
+            f"{args.output_dir}/logger/",
             name=f"DETR",
-            project="object_detection",
-            entity="robust-detection",
-            log_model=False
         )
     checkpoint_cb = ModelCheckpoint(
-        dirpath=logger.experiment.dir,
+        dirpath=logger.log_dir,
         monitor='val_acc',
         mode='max',
         verbose=True
@@ -177,7 +165,7 @@ def main(model_cls, data_cls, args, logger = None):
     model = model_cls.load_from_checkpoint(checkpoint_path)
     val_results = trainer2.test(
         model,
-        test_dataloaders=dataset.val_dataloader()
+        dataloaders=dataset.val_dataloader()
     )[0]
 
     val_results = {
@@ -187,15 +175,23 @@ def main(model_cls, data_cls, args, logger = None):
 
     test_results = trainer2.test(
         model,
-        test_dataloaders=dataset.test_dataloader()
+        dataloaders=dataset.test_dataloader()
     )[0]
-
+    test_results_dict = {}
+    val_results_dict = {}
     for name, value in {**test_results}.items():
-        logger.experiment.summary['restored_' + name] = value
+        test_results_dict[name]=value
+        #logger.experiment.summary['restored_' + name] = value
     for name, value in {**val_results}.items():
-        logger.experiment.summary['restored_' + name] = value
-
-    return logger.experiment.id
+        val_results_dict[name]=value
+        #logger.experiment.summary['restored_' + name] = value
+    import pickle
+    with open(os.path.join(logger.log_dir,"restored_test_result.pkl"), "wb") as output_file:
+         pickle.dump(test_results_dict, output_file)
+    with open(os.path.join(logger.log_dir,"restored_val_result.pkl"), "wb") as output_file:
+         pickle.dump(val_results_dict, output_file)
+    print(f"experiment logged in {logger.log_dir}")
+    return logger.log_dir
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser('DETR training and evaluation script', parents=[get_args_parser()])

@@ -22,7 +22,7 @@ import pytorch_lightning as pl
 
 class DETR(pl.LightningModule):
     """ This is the DETR module that performs object detection """
-    def __init__(self, len_dataloader, pretrained, hidden_dim, pos_emb, lr_backbone, masks, bck_bone, dilation, dropout, nheads, dim_feedforward, enc_layers, dec_layers, pre_norm, set_cost_class, set_cost_bbox, set_cost_giou, bbox_loss_coef, giou_loss_coef, eos_coef, num_classes, num_queries, aux_loss=False, agg_case=False, **kwargs):
+    def __init__(self, len_dataloader, pretrained, hidden_dim, pos_emb, lr_backbone, masks, bck_bone, dilation, dropout, nheads, dim_feedforward, enc_layers, dec_layers, pre_norm, set_cost_class, set_cost_bbox, set_cost_giou, bbox_loss_coef, giou_loss_coef, eos_coef, num_classes, num_queries, aux_loss=False, target_data_cls=None, **kwargs):
         """ Initializes the model.
         Parameters:
             backbone: torch module of the backbone to be used. See backbone.py
@@ -58,7 +58,7 @@ class DETR(pl.LightningModule):
         self.num_queries = num_queries
         self.class_embed = nn.Linear(hidden_dim, num_classes + 1)
         self.aux_loss = aux_loss
-        self.agg_case = agg_case
+        self.target_data_cls = target_data_cls
 
         self.matcher = build_matcher(set_cost_class, set_cost_bbox, set_cost_giou)
         weight_dict = {'loss_ce': 1, 'loss_bbox': bbox_loss_coef}
@@ -123,7 +123,7 @@ class DETR(pl.LightningModule):
         #import ipdb; ipdb.set_trace()
         #return torch.Tensor([torch.equal(targets[i]["labels"].sort()[0],preds[i]["labels"].sort()[0]) for i in range(len(targets)) ]).mean()
         return torch.Tensor([torch.equal(targets[i]["labels"].sort()[0],labels[i][torch.where(labels[i] != 0)].sort()[0]) for i in range(len(targets)) ]).mean()
-
+    
     def compute_sum_accuracy(self,targets,preds):
         labels = []
         for i in range(len(targets)):
@@ -135,11 +135,28 @@ class DETR(pl.LightningModule):
     def validation_step(self,batch,batch_idx):
         images, targets, _ = batch
         outputs = self(images)
-        orig_target_sizes = torch.stack([t["orig_size"] for t in targets], dim=0)
-        outputs = self.postprocessors['bbox'](outputs,orig_target_sizes)
+        if "orig_size" in targets[0].keys():
+           orig_target_sizes = torch.stack([t["orig_size"] for t in targets], dim=0)
+           outputs = self.postprocessors['bbox'](outputs,orig_target_sizes)
+        else:
+           orig_target_sizes = torch.stack([torch.tensor([im.size(dim=1),im.size(dim=2)]) for im in images], dim=0)
+           orig_target_sizes = orig_target_sizes.to(images[0].device)
+           outputs = self.postprocessors['bbox'](outputs,orig_target_sizes)
 #        import ipdb; ipdb.set_trace()
-        if self.agg_case:
-            accuracy = self.compute_sum_accuracy(targets,outputs)
+        if self.target_data_cls is not None:
+            labels = []
+            for i in range(len(targets)):
+                keep = [outputs[i]["scores"] > 0.5]
+                label_list = outputs[i]["labels"][keep]
+                label_list = label_list[torch.where(label_list != 0)]
+                #import ipdb; ipdb.set_trace()
+                #dicttemp['labels']=label_list
+                labels.append(dict(labels=label_list))
+            #import ipdb; ipdb.set_trace()
+            accuracy = self.target_data_cls.compute_accuracy(targets,labels)
+            #if accuracy > 0.03:
+            #    import ipdb; ipdb.set_trace()
+            #accuracy = self.compute_accuracy(targets,outputs)
         else:
             accuracy = self.compute_accuracy(targets,outputs)
         self.log("val_acc", accuracy,on_epoch = True)
@@ -148,10 +165,22 @@ class DETR(pl.LightningModule):
     def test_step(self,batch,batch_idx):
         images, targets, _ = batch
         outputs = self(images)
-        orig_target_sizes = torch.stack([t["orig_size"] for t in targets], dim=0)
-        outputs = self.postprocessors['bbox'](outputs,orig_target_sizes)
-        if self.agg_case:
-            accuracy = self.compute_sum_accuracy(targets,outputs)
+        if "orig_size" in targets[0].keys():
+           orig_target_sizes = torch.stack([t["orig_size"] for t in targets], dim=0)
+           outputs = self.postprocessors['bbox'](outputs,orig_target_sizes)
+        else:
+           orig_target_sizes = torch.stack([torch.tensor([im.size(dim=1),im.size(dim=2)]) for im in images], dim=0)
+           orig_target_sizes = orig_target_sizes.to(images[0].device)
+           outputs = self.postprocessors['bbox'](outputs,orig_target_sizes)
+        if self.target_data_cls is not None:
+            labels = []
+            dicttemp = {}
+            for i in range(len(targets)):
+                keep = [outputs[i]["scores"] > 0.5]
+                label_list = outputs[i]["labels"][keep]
+                label_list = label_list[torch.where(label_list != 0)]
+                labels.append(dict(labels=label_list))
+            accuracy = self.target_data_cls.compute_accuracy(targets,labels)
         else:
             accuracy = self.compute_accuracy(targets,outputs)
         self.log("test_acc", accuracy,on_epoch = True)
@@ -160,20 +189,28 @@ class DETR(pl.LightningModule):
     def predict_step(self,batch, batch_idx):
         images, targets, idx = batch
         outputs = self(images)
-        orig_target_sizes = torch.stack([t["orig_size"] for t in targets], dim=0)
-        outputs = self.postprocessors['bbox'](outputs,orig_target_sizes)
+        #import ipdb; ipdb.set_trace()
+        if "orig_size" in targets[0].keys():
+           orig_target_sizes = torch.stack([t["orig_size"] for t in targets], dim=0)
+           outputs = self.postprocessors['bbox'](outputs,orig_target_sizes)
+        else:
+           orig_target_sizes = torch.stack([torch.tensor([im.size(dim=1),im.size(dim=2)]) for im in images], dim=0)
+           orig_target_sizes = orig_target_sizes.to(images[0].device)
+           outputs = self.postprocessors['bbox'](outputs,orig_target_sizes)
         labels = []
         scores = []
         boxes = []
         box_features = []
-        boxes_true = [box_ops.box_cxcywh_to_xyxy(t["boxes"]) for t in targets]
+        if "boxes" in targets[0].keys():
+           boxes_true = [box_ops.box_cxcywh_to_xyxy(t["boxes"]) for t in targets]
         # and from relative [0, 1] to absolute [0, height] coordinates
-        img_h, img_w = orig_target_sizes.unbind(1)
+           img_h, img_w = orig_target_sizes.unbind(1)
         #from IPython.core.debugger import set_trace
         #set_trace()
-        scale_fct = torch.stack([img_w, img_h, img_w, img_h], dim=1)
-        boxes_true = [bt * s_fct[None, :] for bt, s_fct in zip(boxes_true,scale_fct)]
-        for i in range(len(targets)):
+           scale_fct = torch.stack([img_w, img_h, img_w, img_h], dim=1)
+           boxes_true = [bt * s_fct[None, :] for bt, s_fct in zip(boxes_true,scale_fct)]
+        for i in range(len(images)):
+            #import ipdb; ipdb.set_trace()
             keep = [outputs[i]["scores"] > 0.05]
             #import ipdb; ipdb.set_trace()
             #keep.append([preds[i]["scores"] > 0.9])
@@ -183,7 +220,10 @@ class DETR(pl.LightningModule):
             box_features.append(outputs[i]["box_features"][keep])
 
         #return {"boxes_true":[t["boxes"] for t in targets], "scores":[l["scores"] for l in outputs],"targets":[t["labels"] for t in targets],  "preds":[l["labels"] for l in outputs],"idx":idx, "boxes": [l["boxes"] for l in outputs], "box_features": [l["box_features"] for l in outputs]}
-        return {"boxes_true":[t for t in boxes_true], "scores":scores, "targets":[t["labels"] for t in targets],  "preds":labels, "idx":idx, "boxes": boxes, "box_features": box_features}
+        if "boxes" in targets[0].keys():
+           return {"boxes_true":[t for t in boxes_true], "scores":scores, "targets":[t["labels"] for t in targets],  "preds":labels, "idx":idx, "boxes": boxes, "box_features": box_features}
+        else:
+           return {"boxes_true":[None for t in targets], "scores":scores, "targets":[t["labels"] for t in targets],  "preds":labels, "idx":idx, "boxes": boxes, "box_features": box_features}
 
     def configure_optimizers(self):
         opt          = torch.optim.AdamW(self.parameters(), lr=self.hparams["lr"], weight_decay=self.hparams["weight_decay"])
